@@ -23,13 +23,13 @@ namespace PublicServer
             server = new TcpListener(ServerIP, ServerPort);
 
             server.Start();
-            Console.WriteLine("Сервер запущен и ожидает подключения клиентов");
+            Console.WriteLine("Сервер запущен...\nОжидает подключения клиента.");
 
             while (true)
             {
                 TcpClient client = server.AcceptTcpClient();
 
-                Console.WriteLine("Клиент подключился");
+                Console.WriteLine($"Клиент {client.Client.RemoteEndPoint} подключился.");
                 Task.Factory.StartNew(() => HandleConnection(client));
             }
         }

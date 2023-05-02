@@ -26,7 +26,7 @@ namespace PublicServer
                 while (true)
                 {
                     ICommand commandHandler = (ICommand)await GetCommandHandler(client);
-                    await commandHandler?.Execute(stream);
+                    commandHandler?.Execute(stream);
                 }
             }
             catch (Exception ex)
@@ -60,9 +60,9 @@ namespace PublicServer
                         break;
 
                     case "$upload":
-                        Console.WriteLine("Получил команду и ждёт путь");
+
                         string SavePath = await Server.ReadClientMessage(client);
-                        Console.WriteLine("Получил путь");
+
                         Console.WriteLine($"Сервер получил путь для сохранения файла - {SavePath}");
 
                         if (Directory.Exists(SavePath))

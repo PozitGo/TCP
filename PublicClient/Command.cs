@@ -31,7 +31,7 @@ namespace PublicClient
                 FileName = reader.ReadString();
                 fileSize = reader.ReadInt64();
 
-                Console.WriteLine("Получен файл: {0}, размер: {1} байт.", FileName, fileSize);
+                Console.WriteLine("Получен файл: {0}, размер: {1} байт(а).", FileName, fileSize);
 
                 using (FileStream fileStream = new FileStream(Path.Combine(SavePath, FileName), FileMode.Create, FileAccess.Write))
                 {
