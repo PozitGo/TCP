@@ -6,8 +6,4 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Open.Nat" Version="2.1.0" />
-  </ItemGroup>
-
 </Project>
