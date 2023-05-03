@@ -5,62 +5,94 @@ using System.Threading.Tasks;
 
 namespace PublicClient
 {
-
     public interface ICommand
     {
         Task Execute(NetworkStream clientStream);
     }
-    public class DownloadCommand : ICommand
+    public class ReciveCommand : ICommand
     {
-        public readonly string SavePath;
+        public string SavePath;
+        private string CurrentDirectory;
 
-        public DownloadCommand(string SavePath)
+        public ReciveCommand(string SavePath)
         {
             this.SavePath = SavePath;
+            this.CurrentDirectory = SavePath;
         }
 
         public async Task Execute(NetworkStream clientStream)
         {
-            if (Directory.Exists(SavePath))
+            string Name;
+
+            BinaryReader reader = new BinaryReader(clientStream);
+            Name = reader.ReadString();
+
+            if (Name.Contains("."))
             {
-                string FileName;
-                long fileSize;
-
-                BinaryReader reader = new BinaryReader(clientStream);
-
-                FileName = reader.ReadString();
-                fileSize = reader.ReadInt64();
-
-                Console.WriteLine("Получен файл: {0}, размер: {1} байт(а).", FileName, fileSize);
-
-                using (FileStream fileStream = new FileStream(Path.Combine(SavePath, FileName), FileMode.Create, FileAccess.Write))
-                {
-                    byte[] buffer = new byte[fileSize + 4096];
-                    int bytesRead;
-                    long totalBytesRead = 0;
-
-                    while (totalBytesRead < fileSize)
-                    {
-                        bytesRead = clientStream.Read(buffer, 0, buffer.Length);
-                        fileStream.Write(buffer, 0, bytesRead);
-                        totalBytesRead += bytesRead;
-                    }
-                }
-
-                Console.WriteLine($"Файл {FileName} успешно сохранен на диск.\n");
+                await ReciveFileAsync(clientStream, Path.Combine(CurrentDirectory, Name));
             }
             else
             {
-                await Console.Out.WriteLineAsync("Путь для сохранения некорректен");
+                await ReciveDirectoryAsync(clientStream, Name);
             }
+        }
+
+        public async Task ReciveDirectoryAsync(NetworkStream clientStream, string directory)
+        {
+            BinaryReader reader = new BinaryReader(clientStream);
+
+            int CountFiles = reader.ReadInt32();
+            int CountDirectories = reader.ReadInt32();
+
+            CurrentDirectory = Path.Combine(CurrentDirectory, directory);
+            Directory.CreateDirectory(CurrentDirectory);
+
+            for (int i = 0; i < CountDirectories; i++)
+            {
+                await Execute(clientStream);
+            }
+
+            for (int i = 0; i < CountFiles; i++)
+            {
+                await Execute(clientStream);
+            }
+
+            CurrentDirectory = Directory.GetParent(CurrentDirectory).FullName;
+        }
+
+        public async Task ReciveFileAsync(NetworkStream clientStream, string file)
+        {
+            long fileSize;
+
+            BinaryReader reader = new BinaryReader(clientStream);
+            fileSize = reader.ReadInt64();
+
+            Console.WriteLine("Получен файл: {0}, размер: {1} байт(а).", file, fileSize);
+
+            using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
+            {
+                byte[] buffer = new byte[fileSize + 4096];
+                int bytesRead;
+                long totalBytesRead = 0;
+
+                while (totalBytesRead < fileSize)
+                {
+                    bytesRead = clientStream.Read(buffer, 0, buffer.Length);
+                    fileStream.Write(buffer, 0, bytesRead);
+                    totalBytesRead += bytesRead;
+                }
+            }
+
+            Console.WriteLine($"Файл {file} успешно сохранен на диск.\n");
         }
     }
 
-    public class UploadCommand : ICommand
+
+    public class SendCommand : ICommand
     {
         public readonly string SendPath;
 
-        public UploadCommand(string SendPath)
+        public SendCommand(string SendPath)
         {
             this.SendPath = SendPath;
         }
@@ -69,17 +101,51 @@ namespace PublicClient
         {
             if (File.Exists(SendPath))
             {
+                await SendFileAsync(clientStream, SendPath, Path.GetFileName(SendPath));
+            }
+            else
+            {
+                await SendDirectoryAsync(clientStream, SendPath, Path.GetFileName(SendPath));
+            }
+        }
+
+        public async Task SendDirectoryAsync(NetworkStream clientStream, string directory, string directoryName)
+        {
+            BinaryWriter writer = new BinaryWriter(clientStream);
+
+            writer.Write(directoryName);
+            writer.Write(Directory.GetDirectories(directory).Length);
+            writer.Write(Directory.GetFiles(directory).Length);
+
+            foreach (string fileName in Directory.GetFiles(directory))
+            {
+                await SendFileAsync(clientStream, fileName, Path.GetFileName(fileName));
+            }
+
+            foreach (string subDirectory in Directory.GetDirectories(directory))
+            {
+                string subDirectoryName = Path.GetFileName(subDirectory);
+                await SendDirectoryAsync(clientStream, subDirectory, subDirectoryName);
+            }
+        }
+
+        public async Task SendFileAsync(NetworkStream clientStream, string file, string fileName)
+        {
+            if (File.Exists(file))
+            {
                 long fileSize;
+
                 BinaryWriter writer = new BinaryWriter(clientStream);
 
-                FileInfo fileInfo = new FileInfo(SendPath);
+                FileInfo fileInfo = new FileInfo(file);
                 fileSize = fileInfo.Length;
-                writer.Write(fileInfo.Name);
+                writer.Write(fileName);
                 writer.Write(fileInfo.Length);
 
-                Console.WriteLine($"Отправлен {fileInfo.Name}, длина - {fileInfo.Length} байт(а)");
+                Console.WriteLine($"Отправлен {fileName}, длина - {fileInfo.Length} байт(а)");
 
-                using (FileStream fileStream = new FileStream(SendPath, FileMode.Open, FileAccess.Read))
+
+                using (FileStream fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
                 {
                     byte[] buffer = new byte[fileSize + 4096];
                     int bytesRead;
@@ -90,12 +156,13 @@ namespace PublicClient
                     }
                 }
 
-                Console.WriteLine($"Файл отправлен\n");
+                Console.WriteLine($"Файл отправлен клиенту\n");
             }
             else
             {
-                await Console.Out.WriteLineAsync("Путь для отправки файла некорректен");
+                await Console.Out.WriteLineAsync("Файл не найден по указанному пути");
             }
         }
     }
+
 }

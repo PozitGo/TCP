@@ -48,9 +48,9 @@ namespace PublicServer
                         string SendPath = await Server.ReadClientMessage(client);
                         Console.WriteLine($"Сервер получил путь для отправки файла - {SendPath}");
 
-                        if (File.Exists(SendPath))
+                        if (File.Exists(SendPath) || Directory.Exists(SendPath))
                         {
-                            return new UploadCommand(SendPath);
+                            return new SendCommand(SendPath);
                         }
                         else
                         {
@@ -67,7 +67,7 @@ namespace PublicServer
 
                         if (Directory.Exists(SavePath))
                         {
-                            return new DownloadCommand(SavePath);
+                            return new ReciveCommand(SavePath);
                         }
                         else
                         {

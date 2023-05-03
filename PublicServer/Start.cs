@@ -8,7 +8,7 @@ namespace PublicServer
     {
         static void Main(string[] args)
         {
-            Server server = new Server("109.123.252.229", 5345);
+            Server server = new Server("192.168.0.136", 5345);
             server.Start();
         }
     }

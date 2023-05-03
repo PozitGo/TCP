@@ -72,7 +72,7 @@ namespace PublicClient
                     if (Directory.Exists(PathsDownload[0]))
                     {
                         await SendClientMessage(client, PathsDownload[1]);
-                        return new DownloadCommand(PathsDownload[0]);
+                        return new ReciveCommand(PathsDownload[0]);
                     }
                     else
                     {
@@ -89,10 +89,10 @@ namespace PublicClient
 
                     Console.WriteLine($"Путь отправки на сервер - {PathsUpload[0]}, путь для сохранения - {PathsUpload[1]}");
 
-                    if (File.Exists(PathsUpload[0]))
+                    if (File.Exists(PathsUpload[0]) || Directory.Exists(PathsUpload[0]))
                     {
                         await SendClientMessage(client, PathsUpload[1]);
-                        return new UploadCommand(PathsUpload[0]);
+                        return new SendCommand(PathsUpload[0]);
                     }
                     else
                     {
