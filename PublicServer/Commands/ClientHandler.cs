@@ -1,12 +1,10 @@
-﻿
-
-using PublicClient;
-using System;
+﻿using System;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using static PublicServer.Commans.SendCommand;
 
-namespace PublicServer
+namespace PublicServer.Commans
 {
     public class ClientHandler
     {
@@ -25,7 +23,7 @@ namespace PublicServer
 
                 while (true)
                 {
-                    ICommand commandHandler = (ICommand)await GetCommandHandler(client);
+                    ICommand commandHandler = await GetCommandHandler(client);
                     commandHandler?.Execute(stream);
                 }
             }
@@ -37,7 +35,7 @@ namespace PublicServer
 
         private async Task<ICommand> GetCommandHandler(TcpClient client)
         {
-            if(client.Connected)
+            if (client.Connected)
             {
                 string command = await Server.ReadClientMessage(client);
 
@@ -46,7 +44,6 @@ namespace PublicServer
                     case "$download":
 
                         string SendPath = await Server.ReadClientMessage(client);
-                        Console.WriteLine($"Сервер получил путь для отправки файла - {SendPath}");
 
                         if (File.Exists(SendPath) || Directory.Exists(SendPath))
                         {
@@ -63,8 +60,6 @@ namespace PublicServer
 
                         string SavePath = await Server.ReadClientMessage(client);
 
-                        Console.WriteLine($"Сервер получил путь для сохранения файла - {SavePath}");
-
                         if (Directory.Exists(SavePath))
                         {
                             return new ReciveCommand(SavePath);
@@ -72,6 +67,22 @@ namespace PublicServer
                         else
                         {
                             Console.WriteLine($"Путь для получения файла от клиента некорректен - {SavePath}");
+                        }
+
+                        break;
+
+                    case "$delete":
+
+                        string ReciveDeletePath = await Server.ReadClientMessage(client);
+
+                        if (Directory.Exists(ReciveDeletePath) || File.Exists(ReciveDeletePath))
+                        {
+                            Console.WriteLine("Полученный путь норм" + ReciveDeletePath);
+                            return new DeleteReciveCommand(ReciveDeletePath);
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Путь для удаления файла от клиента некорректен - {ReciveDeletePath}");
                         }
 
                         break;

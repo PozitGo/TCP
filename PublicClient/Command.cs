@@ -86,8 +86,6 @@ namespace PublicClient
             Console.WriteLine($"Файл {file} успешно сохранен на диск.\n");
         }
     }
-
-
     public class SendCommand : ICommand
     {
         public readonly string SendPath;
@@ -164,5 +162,4 @@ namespace PublicClient
             }
         }
     }
-
 }

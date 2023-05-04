@@ -3,7 +3,7 @@ using System.IO;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 
-namespace PublicClient
+namespace PublicServer.Commans
 {
     public interface ICommand
     {
@@ -17,7 +17,7 @@ namespace PublicClient
         public ReciveCommand(string SavePath)
         {
             this.SavePath = SavePath;
-            this.CurrentDirectory = SavePath;
+            CurrentDirectory = SavePath;
         }
 
         public async Task Execute(NetworkStream clientStream)
@@ -161,6 +161,34 @@ namespace PublicClient
             else
             {
                 await Console.Out.WriteLineAsync("Файл не найден по указанному пути");
+            }
+        }
+
+        public class DeleteReciveCommand : ICommand
+        {
+            public readonly string RecivePath;
+
+            public DeleteReciveCommand(string RecivePath)
+            {
+                this.RecivePath = RecivePath;
+            }
+
+            public Task Execute(NetworkStream clientStream)
+            {
+
+                if (RecivePath.Contains("."))
+                {
+                    Console.WriteLine($"{RecivePath} Это файл а не папка");
+                    File.Delete(RecivePath);
+                    Console.WriteLine($"Файл - {Path.GetFileName(RecivePath)} удалён.");
+                }
+                else
+                {
+                    Directory.Delete(RecivePath, true);
+                    Console.WriteLine($"Папка - {Path.GetFileName(Path.GetDirectoryName(RecivePath))} удалена.");
+                }
+
+                return Task.CompletedTask;
             }
         }
     }
