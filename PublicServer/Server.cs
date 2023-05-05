@@ -75,6 +75,7 @@ namespace PublicServer
             try
             {
                 _ = Task.Factory.StartNew(() => CheckConnection(client));
+
                 while (client.Connected)
                 {
                     (RSAParameters publicKey, RSAParameters privateKey) = RsaKeyGenerator.GenerateKeyPair();
