@@ -40,18 +40,30 @@ namespace PublicClient
                     {
                         case "$success":
                             isAuthorize = true;
+
+                            Console.ForegroundColor = ConsoleColor.Green;
                             Console.WriteLine("\nАвторизация успешна.");
+                            Console.ResetColor();
+
                             break;
                         case "$error":
                             isAuthorize = false;
+
+                            Console.ForegroundColor = ConsoleColor.Red;
                             Console.WriteLine("\nНеверный пароль");
+                            Console.ResetColor();
+
+                            int currentLineCursor = Console.CursorTop;
+                            Console.SetCursorPosition(0, Console.CursorTop - 2);
+                            Console.Write(new string(' ', Console.WindowWidth));
+                            Console.SetCursorPosition(0, currentLineCursor - 2);
                             break;
                     }
                 }
 
                 string command;
                 Console.WriteLine("Введите команду ($download/$upload/$delete):");
-
+        
                 do
                 {
                     command = Console.ReadLine();
@@ -117,7 +129,6 @@ namespace PublicClient
                 }
             }
             while (key.Key != ConsoleKey.Enter);
-
 
             return password;
         }
