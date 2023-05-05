@@ -67,7 +67,7 @@ namespace PublicServer.Commans
             BinaryReader reader = new BinaryReader(clientStream);
             fileSize = reader.ReadInt64();
 
-            Console.WriteLine("Получен файл: {0}, размер: {1} байт(а).", file, fileSize);
+            Console.WriteLine("\nПолучен файл: {0}, размер: {1} байт(а).", Path.GetFileName(file), fileSize);
 
             using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
             {
@@ -83,7 +83,7 @@ namespace PublicServer.Commans
                 }
             }
 
-            Console.WriteLine($"Файл {file} успешно сохранен на диск.\n");
+            Console.WriteLine($"Файл {Path.GetFileName(file)} успешно сохранен на диск.");
         }
     }
 
@@ -142,7 +142,7 @@ namespace PublicServer.Commans
                 writer.Write(fileName);
                 writer.Write(fileInfo.Length);
 
-                Console.WriteLine($"Отправлен {fileName}, длина - {fileInfo.Length} байт(а)");
+                Console.WriteLine($"\nОтправлен {fileName}, длина - {fileInfo.Length} байт(а)");
 
 
                 using (FileStream fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
@@ -156,7 +156,7 @@ namespace PublicServer.Commans
                     }
                 }
 
-                Console.WriteLine($"Файл отправлен клиенту\n");
+                Console.WriteLine($"Файл отправлен клиенту");
             }
             else
             {
@@ -178,7 +178,6 @@ namespace PublicServer.Commans
 
                 if (RecivePath.Contains("."))
                 {
-                    Console.WriteLine($"{RecivePath} Это файл а не папка");
                     File.Delete(RecivePath);
                     Console.WriteLine($"Файл - {Path.GetFileName(RecivePath)} удалён.");
                 }

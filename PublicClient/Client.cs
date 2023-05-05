@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace PublicClient
@@ -13,8 +14,6 @@ namespace PublicClient
         private TcpClient _client;
         private readonly IPAddress ipClient;
         private readonly int portClient;
-        private bool isAuthorize;
-
         public Client(IPAddress iPAddress, int portClient)
         {
             this.ipClient = iPAddress;
@@ -23,11 +22,23 @@ namespace PublicClient
 
         public async Task Connect()
         {
+            bool isAuthorize = false;
             Console.Out.WriteLine("Клиент запускается...");
 
-            _client = new TcpClient(ipClient.ToString(), portClient);
-            Console.WriteLine($"Подключен к серверу");
-
+            while (true)
+            {
+                try
+                {
+                    _client = new TcpClient(ipClient.ToString(), portClient);
+                    Console.WriteLine($"Подключен к серверу");
+                    break;
+                }
+                catch (SocketException)
+                {
+                    Console.WriteLine("Не удалось подключиться к серверу, попытка через 5 секунд...");
+                    Thread.Sleep(5000);
+                }
+            }
 
             while (true)
             {
@@ -59,24 +70,21 @@ namespace PublicClient
                             Console.SetCursorPosition(0, currentLineCursor - 2);
                             break;
                     }
+
                 }
 
                 string command;
+
                 Console.WriteLine("Введите команду ($download/$upload/$delete):");
-        
+
                 do
                 {
                     command = Console.ReadLine();
 
                 } while (string.IsNullOrEmpty(command) && command.All(c => c == ' '));
 
-
-                if (_client.Connected)
-                {
-                    ICommand commandHandler = await GetCommandHandler(command, _client);
-                    commandHandler?.Execute(_client.GetStream());
-                }
-
+                ICommand commandHandler = await GetCommandHandler(command, _client);
+                commandHandler?.Execute(_client.GetStream());
 
             }
         }

@@ -37,32 +37,33 @@ namespace PublicServer
                 TcpClient client = server.AcceptTcpClient();
                 Console.WriteLine($"Клиент {client.Client.RemoteEndPoint} подключился.");
 
+                _ = Task.Factory.StartNew(() => Server.CheckConnection(client));
                 _ = Task.Factory.StartNew(() => HandleConnection(client));
             }
         }
 
-        private void CheckConnection(TcpClient client)
+        public static void CheckConnection(TcpClient client)
         {
             while (true)
             {
-                Thread.Sleep(1000);
+                Thread.Sleep(10000);
 
                 try
                 {
+                    NetworkStream stream = client.GetStream();
+
                     Socket socket = client.Client;
                     bool isConnected = !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0);
 
                     if (!isConnected)
                     {
-                        Console.WriteLine($"Клиент - {client.Client.RemoteEndPoint} отключился");
-                        client.Close();
+                        Console.WriteLine($"Клиент {client.Client.RemoteEndPoint} отключился");
                         break;
                     }
                 }
                 catch (SocketException)
                 {
-                    Console.WriteLine($"Клиент - {client.Client.RemoteEndPoint} отключился");
-                    client.Close();
+                    Console.WriteLine($"Клиент {client.Client.RemoteEndPoint} отключился");
                     break;
                 }
             }
@@ -74,44 +75,15 @@ namespace PublicServer
         {
             try
             {
-                _ = Task.Factory.StartNew(() => CheckConnection(client));
-
                 while (client.Connected)
                 {
-                    (RSAParameters publicKey, RSAParameters privateKey) = RsaKeyGenerator.GenerateKeyPair();
-                    RsaDecryptor decryptor = new RsaDecryptor(privateKey);
-
-                    await SendMessageToClient(client, RSAKeySerializer.SerializeToString(publicKey));
-
-                    while (decryptor.Decrypt(await ReadClientMessage(client)) != encryptionService.DecryptJsonFromFile())
-                    {
-                        if (client.Connected)
-                        {
-                            await SendMessageToClient(client, "$error");
-                            (publicKey, privateKey) = RsaKeyGenerator.GenerateKeyPair();
-                            decryptor = new RsaDecryptor(privateKey);
-                            await SendMessageToClient(client, RSAKeySerializer.SerializeToString(publicKey));
-                        }
-                        else
-                        {
-                            Console.WriteLine($"Клиент - {client.Client.RemoteEndPoint} отключился");
-                            client.Close();
-                        }
-
-                    }
-
-                    await SendMessageToClient(client, "$success");
-
-                    ClientHandler clientHandler = new ClientHandler(client);
+                    ClientHandler clientHandler = new ClientHandler(client, encryptionService);
                     await clientHandler.Handle();
                 }
-
-                Console.WriteLine($"Клиент - {client.Client.RemoteEndPoint} отключился");
-                client.Close();
             }
             catch (Exception ex)
             {
-                //Console.WriteLine($"Ошибка при обработке соединения: {ex.Message}");
+                Console.WriteLine($"Ошибка при обработке соединения: {ex.Message}");
             }
         }
 

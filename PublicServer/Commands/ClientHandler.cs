@@ -1,6 +1,9 @@
-﻿using System;
+﻿using PublicServer.Decryptor;
+using PublicServer.JSON;
+using System;
 using System.IO;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 using static PublicServer.Commans.SendCommand;
 
@@ -9,9 +12,11 @@ namespace PublicServer.Commans
     public class ClientHandler
     {
         private readonly TcpClient client;
+        private readonly JsonEncryptionService encryptionService;
 
-        public ClientHandler(TcpClient client)
+        public ClientHandler(TcpClient client, JsonEncryptionService encryptionService)
         {
+            this.encryptionService = encryptionService;
             this.client = client;
         }
 
@@ -19,6 +24,30 @@ namespace PublicServer.Commans
         {
             try
             {
+                (RSAParameters publicKey, RSAParameters privateKey) = RsaKeyGenerator.GenerateKeyPair();
+                RsaDecryptor decryptor = new RsaDecryptor(privateKey);
+
+                await Server.SendMessageToClient(client, RSAKeySerializer.SerializeToString(publicKey));
+
+                while (decryptor.Decrypt(await Server.ReadClientMessage(client)) != encryptionService.DecryptJsonFromFile())
+                {
+                    if (client.Connected)
+                    {
+                        await Server.SendMessageToClient(client, "$error");
+                        (publicKey, privateKey) = RsaKeyGenerator.GenerateKeyPair();
+                        decryptor = new RsaDecryptor(privateKey);
+                        await Server.SendMessageToClient(client, RSAKeySerializer.SerializeToString(publicKey));
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Клиент - {client.Client.RemoteEndPoint} отключился");
+                        client.Close();
+                    }
+
+                }
+
+                await Server.SendMessageToClient(client, "$success");
+
                 NetworkStream stream = client.GetStream();
 
                 while (client.Connected)
