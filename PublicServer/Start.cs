@@ -9,10 +9,10 @@ namespace PublicServer
     {
         static void Main(string[] args)
         {
-            JsonEncryptionService encryptionService = new JsonEncryptionService(@"/root/Server");
+            JsonEncryptionService encryptionService = new JsonEncryptionService(@"C:\Users\Exper\Desktop");
             encryptionService.EncryptJsonToFile("sdfsdfsdf");
 
-            Server server = new Server("109.123.252.229", 5345, encryptionService);
+            Server server = new Server("192.168.0.136", 5345, encryptionService);
             server.Start();
         }
     }

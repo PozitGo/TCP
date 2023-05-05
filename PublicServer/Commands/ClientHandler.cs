@@ -21,11 +21,14 @@ namespace PublicServer.Commans
             {
                 NetworkStream stream = client.GetStream();
 
-                while (true)
+                while (client.Connected)
                 {
                     ICommand commandHandler = await GetCommandHandler(client);
                     commandHandler?.Execute(stream);
                 }
+
+                Console.WriteLine($"Клиент - {client.Client.RemoteEndPoint} отключился");
+                client.Close();
             }
             catch (Exception ex)
             {
