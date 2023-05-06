@@ -89,48 +89,64 @@ namespace PublicClient
             }
         }
 
-        public void KeepAlive()
-        {
-            while (true)
-            {
-                try
-                {
-                    // отправляем keep-alive пакет
-                    _client.Client.Send(new byte[] { 0 });
-
-                    // ждем 10 секунд
-                    Thread.Sleep(10000);
-                }
-                catch (SocketException)
-                {
-                    Console.WriteLine("Connection lost, closing connection...");
-                    break;
-                }
-            }
-        }
-
         public async Task<string> ReceiveMessageFromServer(TcpClient client)
         {
-            NetworkStream stream = client.GetStream();
-
-            while (true)
+            try
             {
-                if (stream.DataAvailable)
-                {
-                    byte[] buffer = new byte[70000];
-                    int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
+                NetworkStream stream = client.GetStream();
 
-                    return Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                while (true)
+                {
+                    if (stream.DataAvailable)
+                    {
+                        byte[] buffer = new byte[70000];
+                        int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
+
+                        return Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                    }
                 }
             }
+            catch (SocketException)
+            {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await Connect();
+            }
+            catch (IOException)
+            {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await Connect();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка" + ex.Message);
+            }
+
+            return null;
         }
             
         
-        public static async Task SendClientMessage(TcpClient client, string message)
+        public async Task SendClientMessage(TcpClient client, string message)
         {
-            byte[] buffer = Encoding.UTF8.GetBytes(message);
-            NetworkStream stream = client.GetStream();
-            await stream.WriteAsync(buffer, 0, buffer.Length);
+            try
+            {
+                byte[] buffer = Encoding.UTF8.GetBytes(message);
+                NetworkStream stream = client.GetStream();
+                await stream.WriteAsync(buffer, 0, buffer.Length);
+            }
+            catch (SocketException)
+            {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await Connect();
+            }
+            catch (IOException)
+            {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await Connect();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка" + ex.Message);
+            }
         }
 
         public static string GetPasswordFromConsole()
@@ -182,7 +198,7 @@ namespace PublicClient
                         if (Directory.Exists(PathsDownload[0]))
                         {
                             await SendClientMessage(client, PathsDownload[1]);
-                            return new ReciveCommand(PathsDownload[0]);
+                            return new ReciveCommand(PathsDownload[0], new Client(ipClient, portClient));
                         }
                         else
                         {
@@ -207,7 +223,7 @@ namespace PublicClient
                         if (File.Exists(PathsUpload[0]) || Directory.Exists(PathsUpload[0]))
                         {
                             await SendClientMessage(client, PathsUpload[1]);
-                            return new SendCommand(PathsUpload[0]);
+                            return new SendCommand(PathsUpload[0], new Client(ipClient, portClient));
                         }
                         else
                         {
