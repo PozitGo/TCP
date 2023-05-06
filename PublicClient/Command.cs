@@ -23,18 +23,38 @@ namespace PublicClient
 
         public async Task ExecuteAsync(NetworkStream clientStream)
         {
-            string Name;
-
-            BinaryReader reader = new BinaryReader(clientStream);
-            Name = reader.ReadString();
-
-            if (Name.Contains("."))
+            try 
             {
-                await ReciveFileAsync(clientStream, Path.Combine(CurrentDirectory, Name));
+                string Name;
+
+                BinaryReader reader = new BinaryReader(clientStream);
+                Name = reader.ReadString();
+
+                if (Name.Contains("."))
+                {
+                    await ReciveFileAsync(clientStream, Path.Combine(CurrentDirectory, Name));
+                }
+                else
+                {
+                    await ReciveDirectoryAsync(clientStream, Name);
+                }
+
             }
-            else
+            catch (SocketException)
             {
-                await ReciveDirectoryAsync(clientStream, Name);
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await client.Connect();
+            }
+            catch (IOException)
+            {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await client.Connect();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка" + ex.Message);
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await client.Connect();
             }
         }
 
@@ -69,6 +89,12 @@ namespace PublicClient
             }
             catch (IOException)
             {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await client.Connect();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка" + ex.Message);
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
                 await client.Connect();
             }
@@ -111,6 +137,12 @@ namespace PublicClient
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
                 await client.Connect();
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка" + ex.Message);
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await client.Connect();
+            }
         }
     }
 
@@ -128,15 +160,34 @@ namespace PublicClient
 
         public async Task ExecuteAsync(NetworkStream clientStream)
         {
-            if (File.Exists(SendPath))
-            {
-                await SendFileAsync(clientStream, SendPath, Path.GetFileName(SendPath));
-            }
-            else
-            {
-                await SendDirectoryAsync(clientStream, SendPath, Path.GetFileName(SendPath));
-            }
 
+            try
+            {
+                if (File.Exists(SendPath))
+                {
+                    await SendFileAsync(clientStream, SendPath, Path.GetFileName(SendPath));
+                }
+                else
+                {
+                    await SendDirectoryAsync(clientStream, SendPath, Path.GetFileName(SendPath));
+                }
+            }
+            catch (SocketException)
+            {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await client.Connect();
+            }
+            catch (IOException)
+            {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await client.Connect();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка" + ex.Message);
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await client.Connect();
+            }
         }
 
         public async Task SendDirectoryAsync(NetworkStream clientStream, string directory, string directoryName)
@@ -168,6 +219,12 @@ namespace PublicClient
             }
             catch (IOException)
             {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await client.Connect();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка" + ex.Message);
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
                 await client.Connect();
             }
@@ -216,6 +273,12 @@ namespace PublicClient
             }
             catch (IOException)
             {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await client.Connect();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка" + ex.Message);
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
                 await client.Connect();
             }

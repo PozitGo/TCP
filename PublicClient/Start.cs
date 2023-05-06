@@ -8,7 +8,7 @@ namespace PublicClient
     {
         static async Task Main(string[] args)
         {
-            Client client = new Client(IPAddress.Parse("192.168.0.136"), 5345);
+            Client client = new Client(IPAddress.Parse("109.123.252.229"), 5345);
             await client.Connect();
         }
     }

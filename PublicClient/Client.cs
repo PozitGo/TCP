@@ -119,6 +119,8 @@ namespace PublicClient
             catch (Exception ex)
             {
                 Console.WriteLine($"Ошибка" + ex.Message);
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await Connect();
             }
 
             return null;
@@ -146,6 +148,8 @@ namespace PublicClient
             catch (Exception ex)
             {
                 Console.WriteLine($"Ошибка" + ex.Message);
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await Connect();
             }
         }
 
