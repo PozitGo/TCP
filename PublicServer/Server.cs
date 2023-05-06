@@ -1,10 +1,8 @@
 ﻿using PublicServer.Commans;
-using PublicServer.Decryptor;
 using PublicServer.JSON;
 using System;
 using System.Net;
 using System.Net.Sockets;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,8 +26,8 @@ namespace PublicServer
         public async Task Start()
         {
             server = new TcpListener(ServerIP, ServerPort);
-
             server.Start();
+
             Console.WriteLine("Сервер запущен...\nОжидает подключения клиента.");
 
             while (true)
@@ -69,8 +67,6 @@ namespace PublicServer
             }
         }
 
-
-
         private async void HandleConnection(TcpClient client)
         {
             try
@@ -106,7 +102,7 @@ namespace PublicServer
         {
             NetworkStream stream = client.GetStream();
 
-            while (client.Connected)
+            while (true)
             {
                 if (stream.DataAvailable)
                 {
@@ -116,10 +112,6 @@ namespace PublicServer
                     return Encoding.UTF8.GetString(buffer, 0, bytesRead);
                 }
             }
-
-            Console.WriteLine($"Клиент - {client.Client.RemoteEndPoint} отключился");
-            client.Close();
-            return null;
         }
     }
 }

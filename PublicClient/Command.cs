@@ -7,7 +7,7 @@ namespace PublicClient
 {
     public interface ICommand
     {
-        Task Execute(NetworkStream clientStream);
+        Task ExecuteAsync(NetworkStream clientStream);
     }
     public class ReciveCommand : ICommand
     {
@@ -17,10 +17,10 @@ namespace PublicClient
         public ReciveCommand(string SavePath)
         {
             this.SavePath = SavePath;
-            this.CurrentDirectory = SavePath;
+            CurrentDirectory = SavePath;
         }
 
-        public async Task Execute(NetworkStream clientStream)
+        public async Task ExecuteAsync(NetworkStream clientStream)
         {
             string Name;
 
@@ -49,45 +49,45 @@ namespace PublicClient
 
             for (int i = 0; i < CountDirectories; i++)
             {
-                await Execute(clientStream);
+                await ExecuteAsync(clientStream);
             }
 
             for (int i = 0; i < CountFiles; i++)
             {
-                await Execute(clientStream);
+                await ExecuteAsync(clientStream);
             }
 
             CurrentDirectory = Directory.GetParent(CurrentDirectory).FullName;
         }
 
-        public Task ReciveFileAsync(NetworkStream clientStream, string file)
+        public async Task ReciveFileAsync(NetworkStream clientStream, string file)
         {
             long fileSize;
 
             BinaryReader reader = new BinaryReader(clientStream);
             fileSize = reader.ReadInt64();
 
-            Console.WriteLine("\nПолучен файл: {0}, размер: {1} байт(а).", Path.GetFileName(file), fileSize);
+            Console.WriteLine("Получен файл: {0}, размер: {1} байт(а).", file, fileSize);
 
             using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
             {
-                byte[] buffer = new byte[fileSize + 4096];
+                byte[] buffer = new byte[fileSize];
                 int bytesRead;
                 long totalBytesRead = 0;
 
                 while (totalBytesRead < fileSize)
                 {
-                    bytesRead = clientStream.Read(buffer, 0, buffer.Length);
-                    fileStream.Write(buffer, 0, bytesRead);
+                    bytesRead = await clientStream.ReadAsync(buffer, 0, buffer.Length);
+                    await fileStream.WriteAsync(buffer, 0, bytesRead);
                     totalBytesRead += bytesRead;
                 }
             }
 
-            Console.WriteLine($"Файл {Path.GetFileName(file)} успешно сохранен на диск.");
-
-            return Task.CompletedTask;
+            Console.WriteLine($"Файл {file} успешно сохранен на диск.\n");
         }
     }
+
+
     public class SendCommand : ICommand
     {
         public readonly string SendPath;
@@ -97,7 +97,7 @@ namespace PublicClient
             this.SendPath = SendPath;
         }
 
-        public async Task Execute(NetworkStream clientStream)
+        public async Task ExecuteAsync(NetworkStream clientStream)
         {
             if (File.Exists(SendPath))
             {
@@ -107,6 +107,7 @@ namespace PublicClient
             {
                 await SendDirectoryAsync(clientStream, SendPath, Path.GetFileName(SendPath));
             }
+
         }
 
         public async Task SendDirectoryAsync(NetworkStream clientStream, string directory, string directoryName)
@@ -142,12 +143,12 @@ namespace PublicClient
                 writer.Write(fileName);
                 writer.Write(fileInfo.Length);
 
-                Console.WriteLine($"\nОтправлен {fileName}, длина - {fileInfo.Length} байт(а)");
+                Console.WriteLine($"Отправлен {fileName}, длина - {fileInfo.Length} байт(а)");
 
 
                 using (FileStream fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
                 {
-                    byte[] buffer = new byte[fileSize + 4096];
+                    byte[] buffer = new byte[fileSize];
                     int bytesRead;
 
                     while ((bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
@@ -156,7 +157,7 @@ namespace PublicClient
                     }
                 }
 
-                Console.WriteLine($"Файл отправлен клиенту");
+                Console.WriteLine($"Файл отправлен клиенту\n");
             }
             else
             {

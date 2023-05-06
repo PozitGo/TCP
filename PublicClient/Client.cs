@@ -84,8 +84,28 @@ namespace PublicClient
                 } while (string.IsNullOrEmpty(command) && command.All(c => c == ' '));
 
                 ICommand commandHandler = await GetCommandHandler(command, _client);
-                commandHandler?.Execute(_client.GetStream());
+                await commandHandler?.ExecuteAsync(_client.GetStream());
 
+            }
+        }
+
+        public void KeepAlive()
+        {
+            while (true)
+            {
+                try
+                {
+                    // отправляем keep-alive пакет
+                    _client.Client.Send(new byte[] { 0 });
+
+                    // ждем 10 секунд
+                    Thread.Sleep(10000);
+                }
+                catch (SocketException)
+                {
+                    Console.WriteLine("Connection lost, closing connection...");
+                    break;
+                }
             }
         }
 
@@ -98,13 +118,14 @@ namespace PublicClient
                 if (stream.DataAvailable)
                 {
                     byte[] buffer = new byte[70000];
-                    int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length); ;
+                    int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
+
                     return Encoding.UTF8.GetString(buffer, 0, bytesRead);
                 }
             }
         }
-
-
+            
+        
         public static async Task SendClientMessage(TcpClient client, string message)
         {
             byte[] buffer = Encoding.UTF8.GetBytes(message);
@@ -148,7 +169,7 @@ namespace PublicClient
                 case "$download":
 
                     await SendClientMessage(client, command);
-                    Console.WriteLine("Использование: <Путь для сохранения> | <Путь для извлечения>");
+                    Console.WriteLine("Использование: <Путь для сохранения на локальном пк> | <Путь для извлечения на сервере>");
                     Console.WriteLine("Для выхода из ввода - $exit");
 
                     string tempDownload = Console.ReadLine();
@@ -174,7 +195,7 @@ namespace PublicClient
                 case "$upload":
 
                     await SendClientMessage(client, command);
-                    Console.WriteLine("Использование: <Путь для отправки> | <Путь для сохранения>");
+                    Console.WriteLine("Использование: <Путь для отправки на локальном пк> | <Путь для сохранения на сервере>");
                     Console.WriteLine("Для выхода из ввода - $exit");
 
                     string tempUpload = Console.ReadLine();
@@ -199,7 +220,7 @@ namespace PublicClient
                 case "$delete":
 
                     await SendClientMessage(client, command);
-                    Console.WriteLine("Использование: <Путь для запроса на удаление>");
+                    Console.WriteLine("Использование: <Путь для запроса на удаление на сервер>");
                     Console.WriteLine("Для выхода из ввода - $exit");
 
                     string tempDelete = Console.ReadLine();

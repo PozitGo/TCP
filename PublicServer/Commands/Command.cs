@@ -3,11 +3,11 @@ using System.IO;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 
-namespace PublicServer.Commans
+namespace PublicServer
 {
     public interface ICommand
     {
-        Task Execute(NetworkStream clientStream);
+        Task ExecuteAsync(NetworkStream clientStream);
     }
     public class ReciveCommand : ICommand
     {
@@ -20,7 +20,7 @@ namespace PublicServer.Commans
             CurrentDirectory = SavePath;
         }
 
-        public async Task Execute(NetworkStream clientStream)
+        public async Task ExecuteAsync(NetworkStream clientStream)
         {
             string Name;
 
@@ -49,12 +49,12 @@ namespace PublicServer.Commans
 
             for (int i = 0; i < CountDirectories; i++)
             {
-                await Execute(clientStream);
+                await ExecuteAsync(clientStream);
             }
 
             for (int i = 0; i < CountFiles; i++)
             {
-                await Execute(clientStream);
+                await ExecuteAsync(clientStream);
             }
 
             CurrentDirectory = Directory.GetParent(CurrentDirectory).FullName;
@@ -67,23 +67,23 @@ namespace PublicServer.Commans
             BinaryReader reader = new BinaryReader(clientStream);
             fileSize = reader.ReadInt64();
 
-            Console.WriteLine("\nПолучен файл: {0}, размер: {1} байт(а).", Path.GetFileName(file), fileSize);
+            Console.WriteLine("Получен файл: {0}, размер: {1} байт(а).", file, fileSize);
 
             using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
             {
-                byte[] buffer = new byte[fileSize + 4096];
+                byte[] buffer = new byte[fileSize];
                 int bytesRead;
                 long totalBytesRead = 0;
 
                 while (totalBytesRead < fileSize)
                 {
-                    bytesRead = clientStream.Read(buffer, 0, buffer.Length);
-                    fileStream.Write(buffer, 0, bytesRead);
+                    bytesRead = await clientStream.ReadAsync(buffer, 0, buffer.Length);
+                    await fileStream.WriteAsync(buffer, 0, bytesRead);
                     totalBytesRead += bytesRead;
                 }
             }
 
-            Console.WriteLine($"Файл {Path.GetFileName(file)} успешно сохранен на диск.");
+            Console.WriteLine($"Файл {file} успешно сохранен на диск.\n");
         }
     }
 
@@ -97,7 +97,7 @@ namespace PublicServer.Commans
             this.SendPath = SendPath;
         }
 
-        public async Task Execute(NetworkStream clientStream)
+        public async Task ExecuteAsync(NetworkStream clientStream)
         {
             if (File.Exists(SendPath))
             {
@@ -142,12 +142,12 @@ namespace PublicServer.Commans
                 writer.Write(fileName);
                 writer.Write(fileInfo.Length);
 
-                Console.WriteLine($"\nОтправлен {fileName}, длина - {fileInfo.Length} байт(а)");
+                Console.WriteLine($"Отправлен {fileName}, длина - {fileInfo.Length} байт(а)");
 
 
                 using (FileStream fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
                 {
-                    byte[] buffer = new byte[fileSize + 4096];
+                    byte[] buffer = new byte[fileSize];
                     int bytesRead;
 
                     while ((bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
@@ -156,40 +156,42 @@ namespace PublicServer.Commans
                     }
                 }
 
-                Console.WriteLine($"Файл отправлен клиенту");
+                Console.WriteLine($"Файл отправлен клиенту\n");
             }
             else
             {
                 await Console.Out.WriteLineAsync("Файл не найден по указанному пути");
             }
         }
+    }
 
-        public class DeleteReciveCommand : ICommand
+
+    public class DeleteReciveCommand : ICommand
+    {
+        public readonly string RecivePath;
+
+        public DeleteReciveCommand(string RecivePath)
         {
-            public readonly string RecivePath;
+            this.RecivePath = RecivePath;
+        }
 
-            public DeleteReciveCommand(string RecivePath)
+        public Task ExecuteAsync(NetworkStream clientStream)
+        {
+
+            if (RecivePath.Contains("."))
             {
-                this.RecivePath = RecivePath;
+                File.Delete(RecivePath);
+                Console.WriteLine($"Файл - {Path.GetFileName(RecivePath)} удалён.");
+            }
+            else
+            {
+                Console.WriteLine($"Папка - {Path.GetFileName(Path.GetDirectoryName(RecivePath))} удалена.");
+                Directory.Delete(RecivePath, true);
             }
 
-            public Task Execute(NetworkStream clientStream)
-            {
-
-                if (RecivePath.Contains("."))
-                {
-                    File.Delete(RecivePath);
-                    Console.WriteLine($"Файл - {Path.GetFileName(RecivePath)} удалён.");
-                }
-                else
-                {
-                    Directory.Delete(RecivePath, true);
-                    Console.WriteLine($"Папка - {Path.GetFileName(Path.GetDirectoryName(RecivePath))} удалена.");
-                }
-
-                return Task.CompletedTask;
-            }
+            return Task.CompletedTask;
         }
     }
+
 
 }

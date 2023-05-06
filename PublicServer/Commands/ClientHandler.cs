@@ -5,7 +5,6 @@ using System.IO;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
-using static PublicServer.Commans.SendCommand;
 
 namespace PublicServer.Commans
 {
@@ -52,8 +51,9 @@ namespace PublicServer.Commans
 
                 while (client.Connected)
                 {
-                    ICommand commandHandler = await GetCommandHandler(client);
-                    commandHandler?.Execute(stream);
+                    ICommand commandHandler = default;
+                    Task.Factory.StartNew(async() => commandHandler = await GetCommandHandler(client)).Wait();
+                    await commandHandler?.ExecuteAsync(stream);
                 }
 
                 Console.WriteLine($"Клиент - {client.Client.RemoteEndPoint} отключился");
