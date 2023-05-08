@@ -108,8 +108,6 @@ namespace PublicClient
                 BinaryReader reader = new BinaryReader(clientStream);
                 long fileSize = reader.ReadInt64();
 
-                Console.WriteLine("Получен файл: {0}, размер: {1} байт(а).", file, fileSize);
-
                 if (fileSize > 250 * 1024 * 1024)
                 {
                     using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
@@ -117,6 +115,7 @@ namespace PublicClient
                         byte[] buffer = new byte[150 * 1024 * 1024];
                         long totalBytesReceived = 0;
                         int bytesRead;
+                        bool isFirstIteration = true;
 
                         while (totalBytesReceived < fileSize)
                         {
@@ -125,7 +124,15 @@ namespace PublicClient
                             await fileStream.WriteAsync(buffer, 0, bytesRead);
                             totalBytesReceived += bytesRead;
 
-                            Console.WriteLine($"Получено {totalBytesReceived} байт(а) из {fileSize}");
+                            if (isFirstIteration)
+                            {
+                                await Console.Out.WriteAsync($"\nПрогресс получения файла {Path.GetFileName(file)}  - {Math.Round((totalBytesReceived / (double)fileSize) * 100, 0)}%");
+                                isFirstIteration = false;
+                            }
+                            else
+                            {
+                                await Console.Out.WriteAsync($"\rПрогресс получения файла {Path.GetFileName(file)} - {Math.Round((totalBytesReceived / (double)fileSize) * 100, 0)}%");
+                            }
                         }
                     }
                 }
@@ -146,7 +153,7 @@ namespace PublicClient
                     }
                 }
 
-                Console.WriteLine($"Файл {file} успешно сохранен на диск.\n");
+                Console.WriteLine($"\nФайл {file} успешно сохранен на диск.\n");
             }
             catch (SocketException)
             {
@@ -265,11 +272,12 @@ namespace PublicClient
                     writer.Write(fileName);
                     writer.Write(fileSize);
 
-                    Console.WriteLine($"Отправлен {fileName}, длина - {fileSize} байт(а)");
                     if (fileSize > 250 * 1024 * 1024)
                     {
                         using (FileStream fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
                         {
+                            bool isFirstIteration = true;
+
                             while (totalBytesSent < fileSize)
                             {
                                 byte[] buffer = new byte[150 * 1024 * 1024];
@@ -279,7 +287,15 @@ namespace PublicClient
                                 await clientStream.WriteAsync(buffer, 0, bytesRead);
                                 bytesSent = bytesRead;
 
-                                Console.WriteLine($"Отправлено {totalBytesSent} байт(а) из {fileSize}");
+                                if (isFirstIteration)
+                                {
+                                    await Console.Out.WriteAsync($"Прогресс отправки файла {Path.GetFileName(file)} - {Math.Round((totalBytesSent / (double)fileSize) * 100, 0)}%");
+                                    isFirstIteration = false;
+                                }
+                                else
+                                {
+                                    await Console.Out.WriteAsync($"\rПрогресс отправки файла {Path.GetFileName(file)} - {Math.Round((totalBytesSent / (double)fileSize) * 100, 0)}%");
+                                }
                             }
                         }
                     }
@@ -297,7 +313,7 @@ namespace PublicClient
                         }
                     }
 
-                    Console.WriteLine($"Файл отправлен клиенту\n");
+                    Console.WriteLine($"\nФайл отправлен клиенту\n");
                 }
                 else
                 {

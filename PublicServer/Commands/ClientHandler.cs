@@ -53,7 +53,11 @@ namespace PublicServer.Commans
                 {
                     ICommand commandHandler = default;
                     Task.Factory.StartNew(async() => commandHandler = await GetCommandHandler(client)).Wait();
-                    await commandHandler?.ExecuteAsync(stream);
+                    
+                    if(commandHandler != null)
+                    {
+                        await commandHandler.ExecuteAsync(stream);
+                    }
                 }
 
                 Console.WriteLine($"Клиент - {client.Client.RemoteEndPoint} отключился");
@@ -77,7 +81,11 @@ namespace PublicServer.Commans
 
                         string SendPath = await Server.ReadClientMessage(client);
 
-                        if (File.Exists(SendPath) || Directory.Exists(SendPath))
+                        if(SendPath is "$exit")
+                        {
+                            return null;
+                        }
+                        else if (File.Exists(SendPath) || Directory.Exists(SendPath))
                         {
                             return new SendCommand(SendPath);
                         }
@@ -92,7 +100,11 @@ namespace PublicServer.Commans
 
                         string SavePath = await Server.ReadClientMessage(client);
 
-                        if (Directory.Exists(SavePath))
+                        if(SavePath is "$exit")
+                        {
+                            return null;
+                        }
+                        else if (Directory.Exists(SavePath))
                         {
                             return new ReciveCommand(SavePath);
                         }
@@ -107,9 +119,12 @@ namespace PublicServer.Commans
 
                         string ReciveDeletePath = await Server.ReadClientMessage(client);
 
-                        if (Directory.Exists(ReciveDeletePath) || File.Exists(ReciveDeletePath))
+                        if(ReciveDeletePath is "$exit")
                         {
-                            Console.WriteLine("Полученный путь норм" + ReciveDeletePath);
+                            return null;
+                        }
+                        else if (Directory.Exists(ReciveDeletePath) || File.Exists(ReciveDeletePath))
+                        {
                             return new DeleteReciveCommand(ReciveDeletePath);
                         }
                         else

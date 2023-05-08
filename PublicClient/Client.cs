@@ -75,7 +75,7 @@ namespace PublicClient
 
                 string command;
 
-                Console.WriteLine("Введите команду ($download/$upload/$delete):");
+                Console.WriteLine("\nВведите команду ($download/$upload/$delete):");
 
                 do
                 {
@@ -84,7 +84,11 @@ namespace PublicClient
                 } while (string.IsNullOrEmpty(command) && command.All(c => c == ' '));
 
                 ICommand commandHandler = await GetCommandHandler(command, _client);
-                await commandHandler?.ExecuteAsync(_client.GetStream());
+
+                if (commandHandler != null)
+                {
+                    await commandHandler.ExecuteAsync(_client.GetStream());
+                }
 
             }
         }
@@ -125,8 +129,8 @@ namespace PublicClient
 
             return null;
         }
-            
-        
+
+
         public async Task SendClientMessage(TcpClient client, string message)
         {
             try
@@ -177,7 +181,7 @@ namespace PublicClient
                     }
                 }
             }
-            while (key.Key != ConsoleKey.Enter);
+            while (key.Key != ConsoleKey.Enter && !(password.Length > 30));
 
             return password;
         }
@@ -189,24 +193,38 @@ namespace PublicClient
                 case "$download":
 
                     await SendClientMessage(client, command);
-                    Console.WriteLine("Использование: <Путь для сохранения на локальном пк> | <Путь для извлечения на сервере>");
-                    Console.WriteLine("Для выхода из ввода - $exit");
+                    bool successDownload = false;
 
-                    string tempDownload = Console.ReadLine();
-
-                    if (tempDownload != "$exit")
+                    while (!successDownload)
                     {
-                        string[] PathsDownload = tempDownload.Split('|');
+                        Console.WriteLine("Использование: <Путь для сохранения на локальном пк> | <Путь для извлечения на сервере>");
+                        Console.WriteLine("Для выхода из ввода - $exit");
 
-
-                        if (Directory.Exists(PathsDownload[0]))
+                        string tempDownload = Console.ReadLine();
+                        if (tempDownload != "$exit")
                         {
-                            await SendClientMessage(client, PathsDownload[1]);
-                            return new ReciveCommand(PathsDownload[0], new Client(ipClient, portClient));
+                            string[] PathsDownload = tempDownload.Split('|');
+
+
+                            if (Directory.Exists(PathsDownload[0]))
+                            {
+                                await SendClientMessage(client, PathsDownload[1]);
+                                successDownload = true;
+                                return new ReciveCommand(PathsDownload[0], new Client(ipClient, portClient));
+                            }
+                            else
+                            {
+                                Console.WriteLine($"Путь для сохранения некорректен - {PathsDownload[0]}");
+                                successDownload = false;
+                            }
                         }
                         else
                         {
-                            Console.WriteLine($"Путь для сохранения некорректен - {PathsDownload[0]}");
+
+                            await SendClientMessage(client, tempDownload);
+                            successDownload = true;
+                            
+                            return null;
                         }
                     }
 
@@ -215,45 +233,59 @@ namespace PublicClient
                 case "$upload":
 
                     await SendClientMessage(client, command);
-                    Console.WriteLine("Использование: <Путь для отправки на локальном пк> | <Путь для сохранения на сервере>");
-                    Console.WriteLine("Для выхода из ввода - $exit");
+                    bool successUpload = false;
 
-                    string tempUpload = Console.ReadLine();
-
-                    if (tempUpload != "$exit")
+                    while (!successUpload)
                     {
-                        string[] PathsUpload = tempUpload.Split('|');
+                        Console.WriteLine("Использование: <Путь для отправки на локальном пк> | <Путь для сохранения на сервере>");
+                        Console.WriteLine("Для выхода из ввода - $exit");
 
-                        if (File.Exists(PathsUpload[0]) || Directory.Exists(PathsUpload[0]))
+                        string tempUpload = Console.ReadLine();
+
+                        if (tempUpload != "$exit")
                         {
-                            await SendClientMessage(client, PathsUpload[1]);
-                            return new SendCommand(PathsUpload[0], new Client(ipClient, portClient));
+                            string[] PathsUpload = tempUpload.Split('|');
+
+                            if (File.Exists(PathsUpload[0]) || Directory.Exists(PathsUpload[0]))
+                            {
+                                await SendClientMessage(client, PathsUpload[1]);
+                                successUpload = true;
+                                return new SendCommand(PathsUpload[0], new Client(ipClient, portClient));
+                            }
+                            else
+                            {
+                                Console.WriteLine($"Путь для отправки некорректен - {PathsUpload[0]}");
+                                successUpload = false;
+                            }
+
                         }
                         else
                         {
-                            Console.WriteLine($"Путь для отправки некорректен - {PathsUpload[0]}");
-                        }
 
+                            await SendClientMessage(client, tempUpload);
+                            successDownload = true;
+                            return null;
+                        }
                     }
 
                     break;
                 case "$delete":
 
                     await SendClientMessage(client, command);
+
                     Console.WriteLine("Использование: <Путь для запроса на удаление на сервер>");
                     Console.WriteLine("Для выхода из ввода - $exit");
 
                     string tempDelete = Console.ReadLine();
 
-                    if (tempDelete != "$exit")
-                    {
-                        await SendClientMessage(client, tempDelete);
-                    }
+                    await SendClientMessage(client, tempDelete);
 
                     break;
 
                 default:
+                    Console.ForegroundColor = ConsoleColor.Red;
                     Console.WriteLine($"Неизвестная команда: {command}");
+                    Console.ResetColor();
                     return null;
             }
 

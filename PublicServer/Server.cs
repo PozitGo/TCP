@@ -33,7 +33,7 @@ namespace PublicServer
             while (true)
             {
                 TcpClient client = server.AcceptTcpClient();
-                Console.WriteLine($"Клиент {client.Client.RemoteEndPoint} подключился.");
+                Console.WriteLine($"Клиент {client.Client.RemoteEndPoint} подключился. \n");
 
                 _ = Task.Factory.StartNew(() => Server.CheckConnection(client));
                 _ = Task.Factory.StartNew(() => HandleConnection(client));
