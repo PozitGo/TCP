@@ -13,17 +13,18 @@ namespace PublicClient
     {
         public string SavePath;
         private string CurrentDirectory;
-        public readonly Client client;
+        private Client client;
 
         public ReciveCommand(string SavePath, Client client)
         {
             this.SavePath = SavePath;
+            this.client = client;
             CurrentDirectory = SavePath;
         }
 
         public async Task ExecuteAsync(NetworkStream clientStream)
         {
-            try 
+            try
             {
                 string Name;
 
@@ -38,7 +39,6 @@ namespace PublicClient
                 {
                     await ReciveDirectoryAsync(clientStream, Name);
                 }
-
             }
             catch (SocketException)
             {
@@ -52,7 +52,7 @@ namespace PublicClient
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Ошибка" + ex.Message);
+                Console.WriteLine($"Ошибка " + ex.Message);
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
                 await client.Connect();
             }
@@ -68,6 +68,7 @@ namespace PublicClient
                 int CountDirectories = reader.ReadInt32();
 
                 CurrentDirectory = Path.Combine(CurrentDirectory, directory);
+                await Console.Out.WriteLineAsync($"Получен каталог {directory}");
                 Directory.CreateDirectory(CurrentDirectory);
 
                 for (int i = 0; i < CountDirectories; i++)
@@ -94,7 +95,7 @@ namespace PublicClient
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Ошибка" + ex.Message);
+                Console.WriteLine($"Ошибка " + ex.Message);
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
                 await client.Connect();
             }
@@ -104,24 +105,44 @@ namespace PublicClient
         {
             try
             {
-                long fileSize;
-
                 BinaryReader reader = new BinaryReader(clientStream);
-                fileSize = reader.ReadInt64();
+                long fileSize = reader.ReadInt64();
 
                 Console.WriteLine("Получен файл: {0}, размер: {1} байт(а).", file, fileSize);
 
-                using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
+                if (fileSize > 250 * 1024 * 1024)
                 {
-                    byte[] buffer = new byte[fileSize];
-                    int bytesRead;
-                    long totalBytesRead = 0;
-
-                    while (totalBytesRead < fileSize)
+                    using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
                     {
-                        bytesRead = await clientStream.ReadAsync(buffer, 0, buffer.Length);
-                        await fileStream.WriteAsync(buffer, 0, bytesRead);
-                        totalBytesRead += bytesRead;
+                        byte[] buffer = new byte[150 * 1024 * 1024];
+                        long totalBytesReceived = 0;
+                        int bytesRead;
+
+                        while (totalBytesReceived < fileSize)
+                        {
+                            int bytesToRead = (int)Math.Min(fileSize - totalBytesReceived, buffer.Length);
+                            bytesRead = await clientStream.ReadAsync(buffer, 0, bytesToRead);
+                            await fileStream.WriteAsync(buffer, 0, bytesRead);
+                            totalBytesReceived += bytesRead;
+
+                            Console.WriteLine($"Получено {totalBytesReceived} байт(а) из {fileSize}");
+                        }
+                    }
+                }
+                else
+                {
+                    using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
+                    {
+                        byte[] buffer = new byte[fileSize];
+                        int bytesRead;
+                        long totalBytesRead = 0;
+
+                        while (totalBytesRead < fileSize)
+                        {
+                            bytesRead = await clientStream.ReadAsync(buffer, 0, buffer.Length);
+                            await fileStream.WriteAsync(buffer, 0, bytesRead);
+                            totalBytesRead += bytesRead;
+                        }
                     }
                 }
 
@@ -139,13 +160,12 @@ namespace PublicClient
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Ошибка" + ex.Message);
+                Console.WriteLine($"Ошибка " + ex.Message);
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
                 await client.Connect();
             }
         }
     }
-
 
     public class SendCommand : ICommand
     {
@@ -200,18 +220,18 @@ namespace PublicClient
                 writer.Write(Directory.GetDirectories(directory).Length);
                 writer.Write(Directory.GetFiles(directory).Length);
 
+                foreach (string subDirectory in Directory.GetDirectories(directory))
+                {
+                    string subDirectoryName = Path.GetFileName(subDirectory);
+                    await Console.Out.WriteLineAsync($"Отправлен подкаталог {subDirectoryName}");
+                    await SendDirectoryAsync(clientStream, subDirectory, subDirectoryName);
+                }
+
                 foreach (string fileName in Directory.GetFiles(directory))
                 {
                     await SendFileAsync(clientStream, fileName, Path.GetFileName(fileName));
                 }
-
-                foreach (string subDirectory in Directory.GetDirectories(directory))
-                {
-                    string subDirectoryName = Path.GetFileName(subDirectory);
-                    await SendDirectoryAsync(clientStream, subDirectory, subDirectoryName);
-                }
             }
-
             catch (SocketException)
             {
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
@@ -224,38 +244,56 @@ namespace PublicClient
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Ошибка" + ex.Message);
+                Console.WriteLine($"Ошибка " + ex.Message);
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
                 await client.Connect();
             }
         }
-
         public async Task SendFileAsync(NetworkStream clientStream, string file, string fileName)
         {
             try
             {
                 if (File.Exists(file))
                 {
-                    long fileSize;
-
                     BinaryWriter writer = new BinaryWriter(clientStream);
 
                     FileInfo fileInfo = new FileInfo(file);
-                    fileSize = fileInfo.Length;
+                    long fileSize = fileInfo.Length;
+                    long totalBytesSent = 0;
+                    int bytesSent;
+
                     writer.Write(fileName);
-                    writer.Write(fileInfo.Length);
+                    writer.Write(fileSize);
 
-                    Console.WriteLine($"Отправлен {fileName}, длина - {fileInfo.Length} байт(а)");
-
-
-                    using (FileStream fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
+                    Console.WriteLine($"Отправлен {fileName}, длина - {fileSize} байт(а)");
+                    if (fileSize > 250 * 1024 * 1024)
                     {
-                        byte[] buffer = new byte[fileSize];
-                        int bytesRead;
-
-                        while ((bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                        using (FileStream fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
                         {
-                            await clientStream.WriteAsync(buffer, 0, bytesRead);
+                            while (totalBytesSent < fileSize)
+                            {
+                                byte[] buffer = new byte[150 * 1024 * 1024];
+                                int bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length);
+                                totalBytesSent += bytesRead;
+
+                                await clientStream.WriteAsync(buffer, 0, bytesRead);
+                                bytesSent = bytesRead;
+
+                                Console.WriteLine($"Отправлено {totalBytesSent} байт(а) из {fileSize}");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        using (FileStream fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
+                        {
+                            byte[] buffer = new byte[fileSize];
+                            int bytesRead;
+
+                            while ((bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                            {
+                                await clientStream.WriteAsync(buffer, 0, bytesRead);
+                            }
                         }
                     }
 
@@ -278,7 +316,7 @@ namespace PublicClient
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Ошибка" + ex.Message);
+                Console.WriteLine($"Ошибка " + ex.Message);
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
                 await client.Connect();
             }

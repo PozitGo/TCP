@@ -45,6 +45,7 @@ namespace PublicServer
             int CountDirectories = reader.ReadInt32();
 
             CurrentDirectory = Path.Combine(CurrentDirectory, directory);
+            await Console.Out.WriteLineAsync($"Получен каталог {directory}");
             Directory.CreateDirectory(CurrentDirectory);
 
             for (int i = 0; i < CountDirectories; i++)
@@ -62,31 +63,58 @@ namespace PublicServer
 
         public async Task ReciveFileAsync(NetworkStream clientStream, string file)
         {
-            long fileSize;
-
-            BinaryReader reader = new BinaryReader(clientStream);
-            fileSize = reader.ReadInt64();
-
-            Console.WriteLine("Получен файл: {0}, размер: {1} байт(а).", file, fileSize);
-
-            using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
+            try
             {
-                byte[] buffer = new byte[fileSize];
-                int bytesRead;
-                long totalBytesRead = 0;
+                BinaryReader reader = new BinaryReader(clientStream);
+                long fileSize = reader.ReadInt64();
 
-                while (totalBytesRead < fileSize)
+                Console.WriteLine("Получен файл: {0}, размер: {1} байт(а).", file, fileSize);
+
+                if (fileSize > 250 * 1024 * 1024)
                 {
-                    bytesRead = await clientStream.ReadAsync(buffer, 0, buffer.Length);
-                    await fileStream.WriteAsync(buffer, 0, bytesRead);
-                    totalBytesRead += bytesRead;
-                }
-            }
+                    using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
+                    {
+                        byte[] buffer = new byte[150 * 1024 * 1024];
+                        long totalBytesReceived = 0;
+                        int bytesRead;
 
-            Console.WriteLine($"Файл {file} успешно сохранен на диск.\n");
+                        while (totalBytesReceived < fileSize)
+                        {
+                            int bytesToRead = (int)Math.Min(fileSize - totalBytesReceived, buffer.Length);
+                            bytesRead = await clientStream.ReadAsync(buffer, 0, bytesToRead);
+                            await fileStream.WriteAsync(buffer, 0, bytesRead);
+                            totalBytesReceived += bytesRead;
+
+                            Console.WriteLine($"Получено {totalBytesReceived} байт(а) из {fileSize}");
+                        }
+                    }
+                }
+                else
+                {
+                    using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
+                    {
+                        byte[] buffer = new byte[fileSize];
+                        int bytesRead;
+                        long totalBytesRead = 0;
+
+                        while (totalBytesRead < fileSize)
+                        {
+                            bytesRead = await clientStream.ReadAsync(buffer, 0, buffer.Length);
+                            await fileStream.WriteAsync(buffer, 0, bytesRead);
+                            totalBytesRead += bytesRead;
+                        }
+                    }
+                }
+
+
+                Console.WriteLine($"Файл {file} успешно сохранен на диск.\n");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка " + ex.Message);
+            }
         }
     }
-
 
     public class SendCommand : ICommand
     {
@@ -117,50 +145,78 @@ namespace PublicServer
             writer.Write(Directory.GetDirectories(directory).Length);
             writer.Write(Directory.GetFiles(directory).Length);
 
-            foreach (string fileName in Directory.GetFiles(directory))
-            {
-                await SendFileAsync(clientStream, fileName, Path.GetFileName(fileName));
-            }
 
             foreach (string subDirectory in Directory.GetDirectories(directory))
             {
                 string subDirectoryName = Path.GetFileName(subDirectory);
+                await Console.Out.WriteLineAsync($"Отправлен подкаталог {subDirectoryName}");
                 await SendDirectoryAsync(clientStream, subDirectory, subDirectoryName);
+            }
+
+            foreach (string fileName in Directory.GetFiles(directory))
+            {
+                await SendFileAsync(clientStream, fileName, Path.GetFileName(fileName));
             }
         }
 
         public async Task SendFileAsync(NetworkStream clientStream, string file, string fileName)
         {
-            if (File.Exists(file))
+            try
             {
-                long fileSize;
-
-                BinaryWriter writer = new BinaryWriter(clientStream);
-
-                FileInfo fileInfo = new FileInfo(file);
-                fileSize = fileInfo.Length;
-                writer.Write(fileName);
-                writer.Write(fileInfo.Length);
-
-                Console.WriteLine($"Отправлен {fileName}, длина - {fileInfo.Length} байт(а)");
-
-
-                using (FileStream fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
+                if (File.Exists(file))
                 {
-                    byte[] buffer = new byte[fileSize];
-                    int bytesRead;
+                    BinaryWriter writer = new BinaryWriter(clientStream);
 
-                    while ((bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                    FileInfo fileInfo = new FileInfo(file);
+                    long fileSize = fileInfo.Length;
+                    long totalBytesSent = 0;
+                    int bytesSent;
+
+                    writer.Write(fileName);
+                    writer.Write(fileSize);
+
+                    Console.WriteLine($"Отправлен {fileName}, длина - {fileSize} байт(а)");
+                    if (fileSize > 250 * 1024 * 1024)
                     {
-                        await clientStream.WriteAsync(buffer, 0, bytesRead);
-                    }
-                }
+                        using (FileStream fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
+                        {
+                            while (totalBytesSent < fileSize)
+                            {
+                                byte[] buffer = new byte[150 * 1024 * 1024];
+                                int bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length);
+                                totalBytesSent += bytesRead;
 
-                Console.WriteLine($"Файл отправлен клиенту\n");
+                                await clientStream.WriteAsync(buffer, 0, bytesRead);
+                                bytesSent = bytesRead;
+
+                                Console.WriteLine($"Отправлено {totalBytesSent} байт(а) из {fileSize}");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        using (FileStream fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
+                        {
+                            byte[] buffer = new byte[fileSize];
+                            int bytesRead;
+
+                            while ((bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                            {
+                                await clientStream.WriteAsync(buffer, 0, bytesRead);
+                            }
+                        }
+                    }
+
+                    Console.WriteLine($"Файл отправлен клиенту\n");
+                }
+                else
+                {
+                    await Console.Out.WriteLineAsync("Файл не найден по указанному пути");
+                }
             }
-            else
+            catch (Exception ex)
             {
-                await Console.Out.WriteLineAsync("Файл не найден по указанному пути");
+                Console.WriteLine($"Ошибка " + ex.Message);
             }
         }
     }
