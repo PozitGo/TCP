@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using static PublicClient.ReciveCommand;
 
 namespace PublicClient
 {
@@ -30,12 +31,16 @@ namespace PublicClient
                 try
                 {
                     _client = new TcpClient(ipClient.ToString(), portClient);
+                    Console.ForegroundColor = ConsoleColor.Green;
                     Console.WriteLine($"Подключен к серверу");
+                    Console.ResetColor();
                     break;
                 }
                 catch (SocketException)
                 {
+                    Console.ForegroundColor = ConsoleColor.DarkYellow;
                     Console.WriteLine("Не удалось подключиться к серверу, попытка через 5 секунд...");
+                    Console.ResetColor();
                     Thread.Sleep(5000);
                 }
             }
@@ -129,7 +134,6 @@ namespace PublicClient
 
             return null;
         }
-
 
         public async Task SendClientMessage(TcpClient client, string message)
         {

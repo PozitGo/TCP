@@ -86,7 +86,7 @@ namespace PublicServer
 
                             if (isFirstIteration)
                             {
-                                await Console.Out.WriteAsync($"Прогресс получения файла {Path.GetFileName(file)} - {Math.Round((totalBytesReceived / (double)fileSize) * 100, 0)}%");
+                                await Console.Out.WriteAsync($"\nПрогресс получения файла {Path.GetFileName(file)} - {Math.Round((totalBytesReceived / (double)fileSize) * 100, 0)}%");
                                 isFirstIteration = false;
                             }
                             else
@@ -114,11 +114,13 @@ namespace PublicServer
                 }
 
 
-                Console.WriteLine($"\nФайл {file} успешно сохранен на диск.\n");
+                Console.WriteLine($"\nФайл {file} успешно сохранен на диск.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Ошибка " + ex.Message);
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"\nОшибка " + ex.Message);
+                Console.ResetColor();
             }
         }
     }
@@ -198,7 +200,7 @@ namespace PublicServer
 
                                 if(isFirstIteration) 
                                 {
-                                    await Console.Out.WriteAsync($"Прогресс отправки файла {Path.GetFileName(file)} - {Math.Round((totalBytesSent / (double)fileSize) * 100, 0)}%");
+                                    await Console.Out.WriteAsync($"\nПрогресс отправки файла {Path.GetFileName(file)} - {Math.Round((totalBytesSent / (double)fileSize) * 100, 0)}%");
                                     isFirstIteration = false;
                                 }
                                 else
@@ -223,7 +225,7 @@ namespace PublicServer
                         }
                     }
 
-                    Console.WriteLine($"\nФайл отправлен клиенту\n");
+                    Console.WriteLine($"\nФайл отправлен клиенту");
                 }
                 else
                 {
@@ -232,7 +234,9 @@ namespace PublicServer
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Ошибка " + ex.Message);
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"\nОшибка " + ex.Message);
+                Console.ResetColor();
             }
         }
     }

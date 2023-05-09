@@ -23,7 +23,7 @@ namespace PublicServer
             this.ServerPort = ServerPort;
         }
 
-        public async Task Start()
+        public Task Start()
         {
             server = new TcpListener(ServerIP, ServerPort);
             server.Start();
@@ -33,7 +33,9 @@ namespace PublicServer
             while (true)
             {
                 TcpClient client = server.AcceptTcpClient();
-                Console.WriteLine($"Клиент {client.Client.RemoteEndPoint} подключился. \n");
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.WriteLine($"Клиент {client.Client.RemoteEndPoint} подключился в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
+                Console.ResetColor();
 
                 _ = Task.Factory.StartNew(() => Server.CheckConnection(client));
                 _ = Task.Factory.StartNew(() => HandleConnection(client));
@@ -55,13 +57,17 @@ namespace PublicServer
 
                     if (!isConnected)
                     {
-                        Console.WriteLine($"Клиент {client.Client.RemoteEndPoint} отключился");
+                        Console.ForegroundColor= ConsoleColor.DarkCyan;
+                        Console.WriteLine($"Клиент {client.Client.RemoteEndPoint} отключился в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
+                        Console.ResetColor();
                         break;
                     }
                 }
                 catch (SocketException)
                 {
-                    Console.WriteLine($"Клиент {client.Client.RemoteEndPoint} отключился");
+                    Console.ForegroundColor = ConsoleColor.DarkCyan;
+                    Console.WriteLine($"Клиент {client.Client.RemoteEndPoint} отключился в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
+                    Console.ResetColor();
                     break;
                 }
             }
@@ -79,7 +85,9 @@ namespace PublicServer
             }
             catch (Exception ex)
             {
+                Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"Ошибка при обработке соединения: {ex.Message}");
+                Console.ResetColor();
             }
         }
 
@@ -94,7 +102,6 @@ namespace PublicServer
             else
             {
                 Console.WriteLine($"Клиент - {client.Client.RemoteEndPoint} отключился");
-                client.Close();
             }
         }
 

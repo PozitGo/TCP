@@ -42,18 +42,24 @@ namespace PublicClient
             }
             catch (SocketException)
             {
+                Console.ForegroundColor = ConsoleColor.Red;
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                Console.ResetColor();
                 await client.Connect();
             }
             catch (IOException)
             {
+                Console.ForegroundColor = ConsoleColor.Red;
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                Console.ResetColor();
                 await client.Connect();
             }
             catch (Exception ex)
             {
+                Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"Ошибка " + ex.Message);
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                Console.ResetColor();
                 await client.Connect();
             }
         }
@@ -85,18 +91,24 @@ namespace PublicClient
             }
             catch (SocketException)
             {
+                Console.ForegroundColor = ConsoleColor.Red;
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                Console.ResetColor();
                 await client.Connect();
             }
             catch (IOException)
             {
+                Console.ForegroundColor = ConsoleColor.Red;
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                Console.ResetColor();
                 await client.Connect();
             }
             catch (Exception ex)
             {
+                Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"Ошибка " + ex.Message);
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                Console.ResetColor();
                 await client.Connect();
             }
         }
@@ -153,22 +165,28 @@ namespace PublicClient
                     }
                 }
 
-                Console.WriteLine($"\nФайл {file} успешно сохранен на диск.\n");
+                Console.WriteLine($"Файл {file} успешно сохранен на диск.");
             }
             catch (SocketException)
             {
+                Console.ForegroundColor = ConsoleColor.Red;
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                Console.ResetColor();
                 await client.Connect();
             }
             catch (IOException)
             {
+                Console.ForegroundColor = ConsoleColor.Red;
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                Console.ResetColor();
                 await client.Connect();
             }
             catch (Exception ex)
             {
+                Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"Ошибка " + ex.Message);
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                Console.ResetColor();
                 await client.Connect();
             }
         }
@@ -201,18 +219,24 @@ namespace PublicClient
             }
             catch (SocketException)
             {
+                Console.ForegroundColor = ConsoleColor.Red;
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                Console.ResetColor();
                 await client.Connect();
             }
             catch (IOException)
             {
+                Console.ForegroundColor = ConsoleColor.Red;
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                Console.ResetColor();
                 await client.Connect();
             }
             catch (Exception ex)
             {
+                Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"Ошибка" + ex.Message);
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                Console.ResetColor();
                 await client.Connect();
             }
         }
@@ -241,18 +265,24 @@ namespace PublicClient
             }
             catch (SocketException)
             {
+                Console.ForegroundColor = ConsoleColor.Red;
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                Console.ResetColor();
                 await client.Connect();
             }
             catch (IOException)
             {
+                Console.ForegroundColor = ConsoleColor.Red;
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                Console.ResetColor();
                 await client.Connect();
             }
             catch (Exception ex)
             {
+                Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"Ошибка " + ex.Message);
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                Console.ResetColor();
                 await client.Connect();
             }
         }
@@ -289,7 +319,7 @@ namespace PublicClient
 
                                 if (isFirstIteration)
                                 {
-                                    await Console.Out.WriteAsync($"Прогресс отправки файла {Path.GetFileName(file)} - {Math.Round((totalBytesSent / (double)fileSize) * 100, 0)}%");
+                                    await Console.Out.WriteAsync($"\nПрогресс отправки файла {Path.GetFileName(file)} - {Math.Round((totalBytesSent / (double)fileSize) * 100, 0)}%");
                                     isFirstIteration = false;
                                 }
                                 else
@@ -313,7 +343,7 @@ namespace PublicClient
                         }
                     }
 
-                    Console.WriteLine($"\nФайл отправлен клиенту\n");
+                    Console.WriteLine($"\nФайл отправлен клиенту");
                 }
                 else
                 {
@@ -337,5 +367,6 @@ namespace PublicClient
                 await client.Connect();
             }
         }
+
     }
 }
