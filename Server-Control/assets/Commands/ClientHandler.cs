@@ -3,30 +3,40 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 
-namespace Server_Control
+namespace Server_Control.assets.Commands
 {
     public class ClientHandler
     {
         private readonly TcpClient client;
+        private string UUID;
+        //private string Command;
+        //private string Arguments;
 
-        public ClientHandler(TcpClient client)
+        public ClientHandler(TcpClient client, string UUID)
         {
+            this.UUID = UUID;
             this.client = client;
         }
+
+        //public ClientHandler(TcpClient client, string UUID, string Command, string Arguments)
+        //{
+        //    this.UUID = UUID;
+        //    this.client = client;
+        //    this.Command = Command;
+        //    this.Arguments = Arguments;
+        //}
 
         public async Task Handle()
         {
             try
             {
-
-                NetworkStream stream = client.GetStream();
-                string command = default;
-
-
-                while (command != "$exit client" && Server.clientList.ContainsKey(((IPEndPoint)client.Client.RemoteEndPoint).Address))
+                while (Server.clientList.ContainsKey(UUID))
                 {
+                    string command;
+
                     Console.ForegroundColor = ConsoleColor.DarkYellow;
                     Console.WriteLine("\nВведите команду ($download/$upload/$delete):");
                     Console.WriteLine("Для выхода из клиента - $exit client");
@@ -40,13 +50,16 @@ namespace Server_Control
 
                     if (command != "$exit client")
                     {
-                        ICommand commandHandler = default;
-                        Task.Factory.StartNew(async () => commandHandler = await GetCommandToClientHandler(command, client)).Wait();
+                        ICommand commandHandler = await GetCommandToClientHandler(command, client);
 
                         if (commandHandler != null)
                         {
                             await commandHandler.ExecuteAsync(client);
                         }
+                    }
+                    else
+                    {
+                        return;
                     }
                 }
 

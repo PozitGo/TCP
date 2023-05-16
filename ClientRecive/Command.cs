@@ -1,10 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 
-namespace Server_Control
+namespace ClientRecive
 {
     public interface ICommand
     {
@@ -25,24 +24,34 @@ namespace Server_Control
         {
             try
             {
-                ProgressTracker progressTracker = new ProgressTracker();
+                BinaryReader reader = new BinaryReader(client.GetStream());
 
-                string Name = MessageServer.ReadClientMessage(client).Result;
+                string Name = reader.ReadString();
 
                 if (Name.Contains("."))
                 {
-                    await ReciveFileAsync(client, Path.Combine(CurrentDirectory, Name), progressTracker);
+                   await ReciveFileAsync(client, Path.Combine(CurrentDirectory, Name));
                 }
                 else
                 {
-                    progressTracker.TotalBytes = Convert.ToInt32(MessageServer.ReadClientMessage(client).Result);
+                    long TotalBytes = reader.ReadInt64();
                     await ReciveDirectoryAsync(client, Name);
                 }
+            }
+            catch (SocketException)
+            {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await Start.client.Connect();
+            }
+            catch (IOException)
+            {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await Start.client.Connect();
             }
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка " + ex.Message);
+                Console.WriteLine($"\nОшибка 1" + ex.Message);
                 Console.ResetColor();
             }
         }
@@ -51,11 +60,12 @@ namespace Server_Control
         {
             try
             {
-                int CountFiles = Convert.ToInt16(MessageServer.ReadClientMessage(client).Result);
-                int CountDirectories = Convert.ToInt16(MessageServer.ReadClientMessage(client).Result);
+                BinaryReader reader = new BinaryReader(client.GetStream());
+
+                int CountDirectories = reader.ReadInt32();
+                int CountFiles = reader.ReadInt32();
 
                 CurrentDirectory = Path.Combine(CurrentDirectory, directory);
-                await Console.Out.WriteLineAsync($"Получен каталог {directory}");
                 Directory.CreateDirectory(CurrentDirectory);
 
                 for (int i = 0; i < CountDirectories; i++)
@@ -70,19 +80,30 @@ namespace Server_Control
 
                 CurrentDirectory = Directory.GetParent(CurrentDirectory).FullName;
             }
+            catch (SocketException)
+            {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await Start.client.Connect();
+            }
+            catch (IOException)
+            {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await Start.client.Connect();
+            }
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка " + ex.Message);
+                Console.WriteLine($"\nОшибка 2" + ex.Message);
                 Console.ResetColor();
             }
         }
 
-        public async Task ReciveFileAsync(TcpClient client, string file, ProgressTracker progressTracker)
+        public async Task ReciveFileAsync(TcpClient client, string file)
         {
             try
             {
-                long fileSize = Convert.ToInt16(MessageServer.ReadClientMessage(client).Result);
+                BinaryReader reader = new BinaryReader(client.GetStream());
+                long fileSize = reader.ReadInt64();
 
                 if (fileSize > 250 * 1024 * 1024)
                 {
@@ -91,6 +112,7 @@ namespace Server_Control
                         byte[] buffer = new byte[150 * 1024 * 1024];
                         long totalBytesReceived = 0;
                         int bytesRead;
+                        bool isFirstIteration = true;
 
                         while (totalBytesReceived < fileSize)
                         {
@@ -98,8 +120,6 @@ namespace Server_Control
                             bytesRead = await client.GetStream().ReadAsync(buffer, 0, bytesToRead);
                             await fileStream.WriteAsync(buffer, 0, bytesRead);
                             totalBytesReceived += bytesRead;
-
-                            await Task.Factory.StartNew(() => progressTracker.ProgressRecive(totalBytesReceived));
                         }
                     }
                 }
@@ -116,19 +136,24 @@ namespace Server_Control
                             bytesRead = await client.GetStream().ReadAsync(buffer, 0, buffer.Length);
                             await fileStream.WriteAsync(buffer, 0, bytesRead);
                             totalBytesRead += bytesRead;
-
-
-                            await Task.Factory.StartNew(() => progressTracker.ProgressRecive(totalBytesRead));
                         }
                     }
                 }
-
-                Console.WriteLine($"Файл {file} успешно сохранен на диск.");
+            }
+            catch (SocketException)
+            {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await Start.client.Connect();
+            }
+            catch (IOException)
+            {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await Start.client.Connect();
             }
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка " + ex.Message);
+                Console.WriteLine($"\nОшибка 3" + ex.Message);
                 Console.ResetColor();
             }
         }
@@ -145,24 +170,13 @@ namespace Server_Control
 
         public async Task ExecuteAsync(TcpClient client)
         {
-            try
+            if (File.Exists(SendPath))
             {
-                if (File.Exists(SendPath))
-                {
-                    ProgressTracker progressTracker = new ProgressTracker(SendPath);
-
-                    await SendFileAsync(client, SendPath, Path.GetFileName(SendPath), progressTracker);
-                }
-                else
-                {
-                    await SendDirectoryAsync(client, SendPath, Path.GetFileName(SendPath));
-                }
+                await SendFileAsync(client, SendPath, Path.GetFileName(SendPath));
             }
-            catch (Exception ex)
+            else
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка" + ex.Message);
-                Console.ResetColor();
+                await SendDirectoryAsync(client, SendPath, Path.GetFileName(SendPath));
             }
         }
 
@@ -170,45 +184,57 @@ namespace Server_Control
         {
             try
             {
-                ProgressTracker progressTracker = new ProgressTracker(directory);
+                BinaryWriter writer = new BinaryWriter(client.GetStream());
 
-                _ = MessageServer.SendMessageToClient(client, directoryName);
-                _ = MessageServer.SendMessageToClient(client, GetDirectorySize(directory).ToString());
-                _ = MessageServer.SendMessageToClient(client, Directory.GetDirectories(directory).Length.ToString());
-                _ = MessageServer.SendMessageToClient(client, directory.Length.ToString());
+                writer.Write(directoryName);
+                writer.Write(GetDirectorySize(directory));
+                writer.Write(Directory.GetDirectories(directory).Length);
+                writer.Write(Directory.GetFiles(directory).Length);
 
                 foreach (string subDirectory in Directory.GetDirectories(directory))
                 {
                     string subDirectoryName = Path.GetFileName(subDirectory);
-                    await Console.Out.WriteLineAsync($"Отправлен подкаталог {subDirectoryName}");
                     await SendDirectoryAsync(client, subDirectory, subDirectoryName);
                 }
 
                 foreach (string fileName in Directory.GetFiles(directory))
                 {
-                    await SendFileAsync(client, fileName, Path.GetFileName(fileName), progressTracker);
+                    await SendFileAsync(client, fileName, Path.GetFileName(fileName));
                 }
+            }
+            catch (SocketException)
+            {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await Start.client.Connect();
+            }
+            catch (IOException)
+            {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await Start.client.Connect();
             }
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка " + ex.Message);
+                Console.WriteLine($"\nОшибка 4" + ex.Message);
                 Console.ResetColor();
             }
         }
-        public async Task SendFileAsync(TcpClient client, string file, string fileName, ProgressTracker progressTracker)
+
+        public async Task SendFileAsync(TcpClient client, string file, string fileName)
         {
             try
             {
                 if (File.Exists(file))
                 {
+                    BinaryWriter writer = new BinaryWriter(client.GetStream());
+
                     FileInfo fileInfo = new FileInfo(file);
                     long fileSize = fileInfo.Length;
                     long totalBytesSent = 0;
                     int bytesSent;
 
-                    _ = MessageServer.SendMessageToClient(client, fileName);
-                    _ = MessageServer.SendMessageToClient(client, fileSize.ToString());
+                    writer.Write(fileName);
+                    writer.Write(fileSize);
 
                     if (fileSize > 250 * 1024 * 1024)
                     {
@@ -222,8 +248,6 @@ namespace Server_Control
 
                                 await client.GetStream().WriteAsync(buffer, 0, bytesRead);
                                 bytesSent = bytesRead;
-
-                               await Task.Factory.StartNew(() => progressTracker.ProgressRecive(totalBytesSent));
                             }
                         }
                     }
@@ -237,24 +261,29 @@ namespace Server_Control
                             while ((bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
                             {
                                 await client.GetStream().WriteAsync(buffer, 0, bytesRead);
-                                totalBytesSent += bytesRead;
-
-                                await Task.Factory.StartNew(() => progressTracker.ProgressRecive(totalBytesSent));
                             }
                         }
                     }
-
-                    Console.WriteLine($"\nФайл отправлен клиенту");
                 }
                 else
                 {
                     await Console.Out.WriteLineAsync("Файл не найден по указанному пути");
                 }
             }
-            catch (Exception ex) 
+            catch (SocketException)
+            {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await Start.client.Connect();
+            }
+            catch (IOException)
+            {
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await Start.client.Connect();
+            }
+            catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка " + ex.Message);
+                Console.WriteLine($"\nОшибка 5" + ex.Message);
                 Console.ResetColor();
             }
         }
@@ -277,6 +306,33 @@ namespace Server_Control
 
             return size;
         }
-
     }
+
+    public class DeleteReciveCommand : ICommand
+    {
+        public readonly string RecivePath;
+
+        public DeleteReciveCommand(string RecivePath)
+        {
+            this.RecivePath = RecivePath;
+        }
+
+        public Task ExecuteAsync(TcpClient client)
+        {
+
+            if (RecivePath.Contains("."))
+            {
+                File.Delete(RecivePath);
+                Console.WriteLine($"Файл - {Path.GetFileName(RecivePath)} удалён.");
+            }
+            else
+            {
+                Console.WriteLine($"Папка - {Path.GetFileName(RecivePath)} удалена.");
+                Directory.Delete(RecivePath, true);
+            }
+
+            return Task.CompletedTask;
+        }
+    }
+
 }

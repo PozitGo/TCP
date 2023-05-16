@@ -4,7 +4,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Server_Control
+namespace Server_Control.assets
 {
     public static class MessageServer
     {
@@ -33,7 +33,7 @@ namespace Server_Control
             {
                 if (stream.DataAvailable)
                 {
-                    byte[] buffer = new byte[70000];
+                    byte[] buffer = new byte[4096];
                     int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
                     string base64Message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
                     byte[] messageBytes = Convert.FromBase64String(base64Message);

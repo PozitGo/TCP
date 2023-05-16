@@ -95,7 +95,7 @@ namespace PublicServer
         {
             if (client.Connected)
             {
-                byte[] buffer = Encoding.UTF8.GetBytes(message);
+                byte[] buffer = Encoding.UTF8.GetBytes(Convert.ToBase64String(Encoding.UTF8.GetBytes(message)));
                 NetworkStream stream = client.GetStream();
                 await stream.WriteAsync(buffer, 0, buffer.Length);
             }
@@ -113,10 +113,13 @@ namespace PublicServer
             {
                 if (stream.DataAvailable)
                 {
-                    byte[] buffer = new byte[70000];
+                    byte[] buffer = new byte[4096];
                     int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
 
-                    return Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                    string base64String = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                    byte[] bytes = Convert.FromBase64String(base64String);
+
+                    return Encoding.UTF8.GetString(bytes);
                 }
             }
         }
