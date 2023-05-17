@@ -5,8 +5,9 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using ClientRecive.assets.Commands;
 
-namespace ClientRecive
+namespace ClientRecive.assets
 {
     public class Client
     {
@@ -16,7 +17,7 @@ namespace ClientRecive
         private bool _isFirstConnect = true;
         public Client(IPAddress iPAddress, int portClient)
         {
-            this.ipClient = iPAddress;
+            ipClient = iPAddress;
             this.portClient = portClient;
         }
 
@@ -74,20 +75,26 @@ namespace ClientRecive
         {
             try
             {
+
                 NetworkStream stream = client.GetStream();
 
-                while (true)
+                while (client.Connected)
                 {
+                    if (stream.DataAvailable)
+                    {
+                        byte[] buffer = new byte[4096];
+                        int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
 
-                    byte[] buffer = new byte[4096];
-                    int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
+                        string base64String = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                        byte[] bytes = Convert.FromBase64String(base64String);
 
-                    string base64String = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                    byte[] bytes = Convert.FromBase64String(base64String);
-
-                    return Encoding.UTF8.GetString(bytes);
-
+                        return Encoding.UTF8.GetString(bytes);
+                    }
                 }
+
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться...");
+                await Start.client.Connect();
+
             }
             catch (SocketException)
             {

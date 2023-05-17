@@ -12,8 +12,8 @@ namespace Server_Control.assets.Commands
     {
         private readonly TcpClient client;
         private string UUID;
-        //private string Command;
-        //private string Arguments;
+        private string Command;
+        private string Arguments;
 
         public ClientHandler(TcpClient client, string UUID)
         {
@@ -21,40 +21,88 @@ namespace Server_Control.assets.Commands
             this.client = client;
         }
 
-        //public ClientHandler(TcpClient client, string UUID, string Command, string Arguments)
-        //{
-        //    this.UUID = UUID;
-        //    this.client = client;
-        //    this.Command = Command;
-        //    this.Arguments = Arguments;
-        //}
+        public ClientHandler(TcpClient client, string UUID, string Command, string Arguments)
+        {
+            this.UUID = UUID;
+            this.client = client;
+            this.Command = Command;
+            this.Arguments = Arguments;
+        }
 
-        public async Task Handle()
+        public ClientHandler(string Command, string Arguments)
+        {
+            this.Command = Command;
+            this.Arguments = Arguments;
+        }
+
+        public ClientHandler(string Command)
+        {
+            this.Command = Command;
+        }
+
+        public async Task Handle(Usage usage)
         {
             try
             {
-                while (Server.clientList.ContainsKey(UUID))
+                if(usage is Usage.Disposable)
                 {
-                    string command;
-
-                    Console.ForegroundColor = ConsoleColor.DarkYellow;
-                    Console.WriteLine("\nВведите команду ($download/$upload/$delete):");
-                    Console.WriteLine("Для выхода из клиента - $exit client");
-                    Console.ResetColor();
-
-                    do
+                    while (Server.clientList.ContainsKey(UUID))
                     {
-                        command = Console.ReadLine();
+                        string command = null;
 
-                    } while (string.IsNullOrEmpty(command) && command.All(c => c == ' '));
+                        Console.ForegroundColor = ConsoleColor.DarkYellow;
+                        Console.WriteLine("\nВведите команду ($download/$upload/$delete) а так же аргументы:");
+                        Console.WriteLine("Для выхода из клиента - $exit");
+                        Console.ResetColor();
 
-                    if (command != "$exit client")
-                    {
-                        ICommand commandHandler = await GetCommandToClientHandler(command, client);
-
-                        if (commandHandler != null)
+                        do
                         {
-                            await commandHandler.ExecuteAsync(client);
+                            command = Console.ReadLine();
+
+                        } while (string.IsNullOrEmpty(command) && command.All(c => c == ' '));
+
+                        if (command.Split(' ').Length is 2)
+                        {
+                            ICommand commandHandler = await GetCommandToClientHandler(client, command.Split(' ')[0], command.Split(' ')[1]);
+
+                            if (commandHandler != null)
+                            {
+                                await commandHandler.ExecuteAsync(client);
+                            }
+                        }
+                        else if (command is "$exit")
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine("Команда введена не верно");
+                            Console.ResetColor();
+                            continue;
+                        }
+                    }
+                }
+                else if(usage is Usage.Reusable)
+                {
+
+                    if(Server.clientList.ContainsKey(UUID))
+                    {
+                        if (!string.IsNullOrEmpty(Command) && !string.IsNullOrEmpty(Arguments))
+                        {
+                            ICommand commandHandler = await GetCommandToClientHandler(client, Command, Arguments);
+
+                            if (commandHandler != null)
+                            {
+                                await commandHandler.ExecuteAsync(client);
+                            }
+                        }
+                        else
+                        {
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine($"Получены некорректный аргументы либо команда");
+                            Console.ResetColor();
+                            return;
                         }
                     }
                     else
@@ -62,7 +110,62 @@ namespace Server_Control.assets.Commands
                         return;
                     }
                 }
+                else
+                {
+                    if (!string.IsNullOrEmpty(Command))
+                    {
+                        if (!string.IsNullOrEmpty(Arguments))
+                        {
+                            foreach (var client in Server.clientList)
+                            {
+                                Console.ForegroundColor = ConsoleColor.Magenta;
+                                Console.WriteLine($"\nОтправка команды клиену {client.Key}");
+                                Console.ResetColor();
+                                ICommand commandHandler = await GetCommandToClientHandler(client.Value, Command, Arguments);
 
+                                if (commandHandler != null)
+                                {
+                                    await commandHandler.ExecuteAsync(client.Value);
+                                }
+
+                                Console.ForegroundColor = ConsoleColor.Magenta;
+                                Console.WriteLine($"Клиент {client.Key} получил команду");
+                                Console.ResetColor();
+                            }
+                        }
+                        else
+                        {
+                            if(Command is "$stop")
+                            {
+                                foreach (var client in Server.clientList)
+                                {
+                                    Console.ForegroundColor = ConsoleColor.Magenta;
+                                    Console.WriteLine($"\nОтправка команды клиену {client.Key}");
+                                    Console.ResetColor();
+
+                                    await MessageServer.SendMessageToClient(client.Value, Command);
+
+                                    Console.ForegroundColor = ConsoleColor.Magenta;
+                                    Console.WriteLine($"Клиент {client.Key} получил команду");
+                                    Console.ResetColor();
+                                }
+                            }
+                            else
+                            {
+                                Console.ForegroundColor = ConsoleColor.Red;
+                                Console.WriteLine($"Получены неверные аргументы");
+                                Console.ResetColor();
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine($"Получена неверная команда");
+                        Console.ResetColor();
+                        return;
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -72,101 +175,73 @@ namespace Server_Control.assets.Commands
             }
         }
 
-        private async Task<ICommand> GetCommandToClientHandler(string command, TcpClient client)
+        private async Task<ICommand> GetCommandToClientHandler(TcpClient client, string command, string arguments = null)
         {
             switch (command)
             {
                 case "$download":
 
-                    await MessageServer.SendMessageToClient(client, command);
-                    bool successDownload = false;
+                    string[] PathsDownload = arguments.Split('|');
 
-                    while (!successDownload)
+                    if (File.Exists(PathsDownload[0]) || Directory.Exists(PathsDownload[0]))
                     {
-                        Console.WriteLine("Использование: <Путь для сохранения на локальном пк> | <Путь для извлечения на удалённом пк>");
-                        Console.WriteLine("Для выхода из ввода - $exit");
+                        await MessageServer.SendMessageToClient(client, $"{command} {PathsDownload[1]}");
 
-                        string tempDownload = Console.ReadLine();
-                        if (tempDownload != "$exit")
+                        if(await MessageServer.ReadClientMessage(client) is "$success")
                         {
-                            string[] PathsDownload = tempDownload.Split('|');
-
-
-                            if (Directory.Exists(PathsDownload[0]))
-                            {
-                                await MessageServer.SendMessageToClient(client, PathsDownload[1]);
-                                successDownload = true;
-                                return new ReciveCommand(PathsDownload[0]);
-                            }
-                            else
-                            {
-                                Console.WriteLine($"Путь для сохранения некорректен - {PathsDownload[0]}");
-                                successDownload = false;
-                            }
+                            return new ReciveCommand(PathsDownload[0]);
                         }
                         else
                         {
-
-                            await MessageServer.SendMessageToClient(client, tempDownload);
-                            successDownload = true;
-
-                            return null;
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine($"Клиент сообщил о некорректности пути отправки -  {PathsDownload[1]}");
+                            Console.ResetColor();
                         }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Путь для сохранения некорректен - {PathsDownload[0]}");
                     }
 
                     break;
 
                 case "$upload":
 
-                    await MessageServer.SendMessageToClient(client, command);
-                    bool successUpload = false;
+                    string[] PathsUpload = arguments.Split('|');
 
-                    while (!successUpload)
+                    if (File.Exists(PathsUpload[0]) || Directory.Exists(PathsUpload[0]))
                     {
-                        Console.WriteLine("Использование: <Путь для отправки на локальном пк> | <Путь для сохранения на удалённом пк>");
-                        Console.WriteLine("Для выхода из ввода - $exit");
+                        await MessageServer.SendMessageToClient(client, $"{command} {PathsUpload[1]}");
 
-                        string tempUpload = Console.ReadLine();
-
-                        if (tempUpload != "$exit")
+                        if(await MessageServer.ReadClientMessage(client) is "$success")
                         {
-                            string[] PathsUpload = tempUpload.Split('|');
-
-                            if (File.Exists(PathsUpload[0]) || Directory.Exists(PathsUpload[0]))
-                            {
-                                await MessageServer.SendMessageToClient(client, PathsUpload[1]);
-                                successUpload = true;
-                                return new SendCommand(PathsUpload[0]);
-                            }
-                            else
-                            {
-                                Console.WriteLine($"Путь для отправки некорректен - {PathsUpload[0]}");
-                                successUpload = false;
-                            }
-
+                            return new SendCommand(PathsUpload[0]);
                         }
                         else
                         {
-
-                            await MessageServer.SendMessageToClient(client, tempUpload);
-                            successDownload = true;
-                            return null;
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine($"Клиент сообщил о некорректности пути сохранения - {PathsUpload[1]}");
+                            Console.ResetColor();
                         }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Путь для отправки некорректен - {PathsUpload[0]}");
                     }
 
                     break;
                 case "$delete":
 
-                    await MessageServer.SendMessageToClient(client, command);
+                    await MessageServer.SendMessageToClient(client, $"{command} {arguments}");
 
-                    Console.WriteLine("Использование: <Путь для запроса на удаление на удалённый пк>");
-                    Console.WriteLine("Для выхода из ввода - $exit");
+                    if (await MessageServer.ReadClientMessage(client) is "$error")
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine($"Клиент сообщил о некорректности пути удаления - {arguments}");
+                        Console.ResetColor();
+                    }
 
-                    string tempDelete = Console.ReadLine();
-
-                    await MessageServer.SendMessageToClient(client, tempDelete);
-
-                    break;
+                        break;
 
                 default:
                     Console.ForegroundColor = ConsoleColor.Red;

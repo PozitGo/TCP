@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
@@ -10,7 +12,7 @@ namespace Server_Control.assets
     {
         public static async Task SendMessageToClient(TcpClient client, string message)
         {
-            if (client.Connected)
+            try
             {
                 byte[] buffer = Encoding.UTF8.GetBytes(message);
                 string base64Message = Convert.ToBase64String(buffer);
@@ -19,9 +21,12 @@ namespace Server_Control.assets
                 NetworkStream stream = client.GetStream();
                 await stream.WriteAsync(buffer, 0, buffer.Length);
             }
-            else
+            catch (Exception)
             {
-                Console.WriteLine($"Клиент - {client.Client.RemoteEndPoint} отключился");
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.WriteLine($"\nКлиент {client.Client.RemoteEndPoint} отключился c UUID {Server.clientList.FirstOrDefault(x => x.Value == client).Key} в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
+                Console.ResetColor();
+                Server.clientList.TryRemove(Server.clientList.FirstOrDefault(x => x.Value == client).Key, out _);
             }
         }
 
@@ -29,17 +34,29 @@ namespace Server_Control.assets
         {
             NetworkStream stream = client.GetStream();
 
-            while (true)
+            try
             {
-                if (stream.DataAvailable)
+                while (true)
                 {
-                    byte[] buffer = new byte[4096];
-                    int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
-                    string base64Message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                    byte[] messageBytes = Convert.FromBase64String(base64Message);
-                    return Encoding.UTF8.GetString(messageBytes, 0, messageBytes.Length);
+                    if (stream.DataAvailable)
+                    {
+                        byte[] buffer = new byte[4096];
+                        int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
+                        string base64Message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                        byte[] messageBytes = Convert.FromBase64String(base64Message);
+                        return Encoding.UTF8.GetString(messageBytes, 0, messageBytes.Length);
+                    }
                 }
             }
+            catch (Exception)
+            {
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.WriteLine($"\nКлиент {client.Client.RemoteEndPoint} отключился c UUID {Server.clientList.FirstOrDefault(x => x.Value == client).Key} в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
+                Console.ResetColor();
+                Server.clientList.TryRemove(Server.clientList.FirstOrDefault(x => x.Value == client).Key, out _);
+            }
+
+            return null;
         }
 
     }

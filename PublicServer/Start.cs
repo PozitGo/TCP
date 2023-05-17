@@ -13,7 +13,7 @@ namespace PublicServer
             JsonEncryptionService encryptionService = new JsonEncryptionService(@"/root/Server");
             encryptionService.EncryptJsonToFile("sdfsdfsdf");
 
-            Server server = new Server("109.123.252.229", 5345, encryptionService);
+            Server server = new Server("192.168.0.136", 5345, encryptionService);
             await server.Start();
         }
     }

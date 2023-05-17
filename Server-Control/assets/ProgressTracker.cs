@@ -1,9 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Reflection.Metadata.Ecma335;
-using System.Text;
-using System.Threading.Channels;
 
 namespace Server_Control.assets
 {
@@ -11,12 +7,11 @@ namespace Server_Control.assets
     {
         public long TotalBytes;
         private long BytesSend;
-        public static int Progress;
+        public int Progress;
 
         public ProgressTracker(string Path)
         {
             TotalBytes = GetDirectoryAndFileSize(Path);
-
         }
 
         public ProgressTracker(long TotalBytes)
@@ -50,40 +45,45 @@ namespace Server_Control.assets
                 return file.Length;
             }
         }
-        public void GetProgress(long BytesSend, ProgressPerforms performs)
+        public void GetProgress(long bytesProcessed, ProgressPerforms performs)
         {
-            this.BytesSend += BytesSend;
-            Progress = (int)Math.Round(this.BytesSend / (double)TotalBytes * 100, 0);
-            Console.ForegroundColor = ConsoleColor.Blue;
-
-            if (performs == ProgressPerforms.Send)
+            if (this.Progress < 100)
             {
-                Console.Write($"\rПрогресс отправки - {Progress}%".PadRight(Console.WindowWidth));
-            }
-            else
-            {
-                Console.Write($"\rПрогресс получения - {Progress}%".PadRight(Console.WindowWidth));
-            }
+                this.BytesSend += bytesProcessed;
+                this.Progress = (int)Math.Round(this.BytesSend / (double)TotalBytes * 100, 0);
 
-            Console.ResetColor();
-
-            if (Progress is 100)
-            {
-                Console.ForegroundColor = ConsoleColor.Green;
-
-                if (performs == ProgressPerforms.Send)
+                switch (performs)
                 {
-                    Console.WriteLine("\nВсе файлы успешно отправлены.");
-                }
-                else
-                {
-                    Console.WriteLine("\nВсе файлы успешно получены.");
-                }
+                    case ProgressPerforms.Send:
+                        Console.ForegroundColor = ConsoleColor.Blue;
+                        Console.Write($"\rПрогресс отправки - {this.Progress}%".PadRight(Console.WindowWidth));
+                        Console.ResetColor();
 
-                Console.ResetColor();
+                        if (this.Progress is 100)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine("\nВсе файлы успешно отправлены.");
+                            Console.ResetColor();
+                        }
+
+                        break;
+
+                    case ProgressPerforms.Recive:
+                        Console.ForegroundColor = ConsoleColor.Blue;
+                        Console.Write($"\rПрогресс получения - {this.Progress}%".PadRight(Console.WindowWidth));
+                        Console.ResetColor();
+
+                        if (this.Progress is 100)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine("\nВсе файлы успешно получены.");
+                            Console.ResetColor();
+                        }
+
+                        break;
+                }
             }
         }
-
     }
 
     public enum ProgressPerforms

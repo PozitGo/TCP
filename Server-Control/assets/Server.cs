@@ -1,10 +1,9 @@
 ﻿using Server_Control.assets.Commands;
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Server_Control.assets
@@ -26,20 +25,31 @@ namespace Server_Control.assets
             server = new TcpListener(ServerIP, ServerPort);
             server.Start();
 
+            Task.Factory.StartNew(() => HandleConnection());
             Console.WriteLine("Сервер запущен...\nОжидает подключения клиента.");
-            _ = Task.Factory.StartNew(() => HandleConnection());
 
             while (true)
             {
                 TcpClient client = server.AcceptTcpClient();
                 string UUID = Guid.NewGuid().ToString().Substring(0, 5);
+                string clientIpAddress = ((IPEndPoint)client.Client.RemoteEndPoint).Address.ToString();
 
                 Console.ForegroundColor = ConsoleColor.DarkCyan;
                 Console.WriteLine($"Клиент {client.Client.RemoteEndPoint} подключился c UUID {UUID} в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
                 Console.ResetColor();
 
+                var existingClient = clientList.FirstOrDefault(x => ((IPEndPoint)x.Value.Client.RemoteEndPoint).Address.ToString() == clientIpAddress);
+
+                if (existingClient.Value != null)
+                {
+                    Console.ForegroundColor = ConsoleColor.DarkCyan;
+                    clientList.TryRemove(existingClient.Key, out _);
+                    Console.WriteLine($"Удаление старого клиента с IP-адресом {clientIpAddress} и UUID {existingClient.Key}");
+                    Console.ResetColor();
+                }
+
                 clientList.TryAdd(UUID, client);
-                _ = Task.Factory.StartNew(() => CheckConnection(client, UUID));
+
             }
         }
 
@@ -49,94 +59,111 @@ namespace Server_Control.assets
             {
                 while (true)
                 {
-                    if (clientList.Count != 0)
+                    ConsoleKeyInfo keyInfo;
+                    do
                     {
-                        Console.ForegroundColor = ConsoleColor.DarkYellow;
-                        Console.WriteLine("\nВведите UUID клиента для работы с ним:");
-                        Console.ResetColor();
+                        keyInfo = Console.ReadKey();
 
-                        while (true)
+                    } while (keyInfo.Key != ConsoleKey.Enter);
+
+                    Console.ForegroundColor = ConsoleColor.DarkYellow;
+                    Console.WriteLine("\nВведите команду или UUID клиента для работы с ним:");
+                    Console.ResetColor();
+
+                    while (true)
+                    {
+                        string Value = Console.ReadLine();
+
+                        if (Value != "$stop")
                         {
-                            string UUID = Console.ReadLine();
-
-                            if (clientList.TryGetValue(UUID, out TcpClient client) && client.Connected)
+                            if (clientList.Count != 0)
                             {
+                                if (Server.clientList.ContainsKey(Value))
+                                {
+                                    Results.Success();
 
-                                int currentLineCursor = Console.CursorTop;
-                                Console.SetCursorPosition(0, Console.CursorTop);
-                                Console.Write(new string(' ', Console.WindowWidth));
-                                Console.SetCursorPosition(0, currentLineCursor);
+                                    TcpClient client = clientList[Value];
 
-                                Console.ForegroundColor = ConsoleColor.Green;
-                                Console.WriteLine($"Успешно");
-                                Console.ResetColor();
+                                    if (client.Connected)
+                                    {
+                                        ClientHandler clientHandler = new ClientHandler(client, Value);
+                                        await clientHandler.Handle(Usage.Disposable);
+                                    }
 
-                                ClientHandler clientHandler = new ClientHandler(client, UUID);
-                                await clientHandler.Handle();
-                                break;
+                                    break;
+                                }
+                                else if (Value.Split(' ').Length is 3 && Server.clientList.ContainsKey(Value.Split(' ')[0]))
+                                {
+
+                                    Results.Success();
+
+                                    string[] Data = Value.Split(' ');
+                                    TcpClient client = clientList[Data[0]];
+
+                                    if (client.Connected)
+                                    {
+                                        ClientHandler clientHandler = new ClientHandler(client, Data[0], Data[1], Data[2]);
+                                        await clientHandler.Handle(Usage.Reusable);
+                                    }
+
+                                    break;
+
+                                }
+                                else if (Value.Split(' ').Length is 3 && Value.Split(' ')[0].Contains("all"))
+                                {
+                                    Results.Success();
+                                    string[] Data = Value.Split(' ');
+
+                                    ClientHandler clientHandler = new ClientHandler(Data[1], Data[2]);
+                                    await clientHandler.Handle(Usage.All);
+
+                                    break;
+                                }
+                                else
+                                {
+                                    Console.ForegroundColor = ConsoleColor.Red;
+                                    Console.WriteLine($"Клиент с UUID {Value} не подключен либо IP некорректен, либо контекст команды неверен. Попробуйте еще раз.");
+                                    Console.ResetColor();
+
+                                    int currentLineCursor = Console.CursorTop;
+                                    Console.SetCursorPosition(0, Console.CursorTop - 2);
+                                    Console.Write(new string(' ', Console.WindowWidth));
+                                    Console.SetCursorPosition(0, currentLineCursor - 2);
+                                }
                             }
                             else
                             {
                                 Console.ForegroundColor = ConsoleColor.Red;
-                                Console.WriteLine($"Клиент с UUID {UUID} не подключен либо IP некорректен. Попробуйте еще раз.");
+                                Console.WriteLine($"Ещё не 1 клиент не подключен, введите команду после подключения клиента");
                                 Console.ResetColor();
-
-                                int currentLineCursor = Console.CursorTop;
-                                Console.SetCursorPosition(0, Console.CursorTop - 2);
-                                Console.Write(new string(' ', Console.WindowWidth));
-                                Console.SetCursorPosition(0, currentLineCursor - 2);
                             }
-
                         }
+                        else
+                        {
+                            Task.Factory.StartNew(async () =>
+                            {
+                                ClientHandler clientHandler = new ClientHandler(Value);
+                                await clientHandler.Handle(Usage.All);
+                            }).Wait();
+
+                            Environment.Exit(0);
+                        }
+
                     }
+
                 }
+            }
+            catch (IndexOutOfRangeException)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"Возможно вы ввели неверный формат команды");
+                Console.ResetColor();
             }
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"Ошибка при обработке соединения: {ex.Message}");
                 Console.ResetColor();
-            }
-        }
-
-
-
-        public static void CheckConnection(TcpClient client, string UUID)
-        {
-            while (true)
-            {
-                Thread.Sleep(1000);
-
-                try
-                {
-                    Socket socket = client.Client;
-                    bool isConnected = !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0);
-
-                    if (!isConnected)
-                    {
-                        Console.ForegroundColor = ConsoleColor.DarkCyan;
-                        Console.WriteLine($"Клиент {client.Client.RemoteEndPoint} отключился c UUID {UUID} в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
-                        Console.ResetColor();
-                        clientList.TryRemove(UUID, out _);
-                        break;
-                    }
-                }
-                catch (SocketException)
-                {
-                    Console.ForegroundColor = ConsoleColor.DarkCyan;
-                    Console.WriteLine($"Клиент {client.Client.RemoteEndPoint} отключился c UUID {UUID} в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
-                    Console.ResetColor();
-                    clientList.TryRemove(UUID, out _);
-                    break;
-                }
-                catch (Exception)
-                {
-                    Console.ForegroundColor = ConsoleColor.DarkCyan;
-                    Console.WriteLine($"Клиент {client.Client.RemoteEndPoint} отключился c UUID {UUID} в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
-                    Console.ResetColor();
-                    clientList.TryRemove(UUID, out _);
-                    break;
-                }
             }
         }
     }

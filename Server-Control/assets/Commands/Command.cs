@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 
@@ -13,11 +14,14 @@ namespace Server_Control.assets.Commands
     {
         public string SavePath;
         private string CurrentDirectory;
-        private ProgressTracker progressTracker = new ProgressTracker();
+        private ProgressTracker progressTracker;
+        private bool IsFirstIteration;
         public ReciveCommand(string SavePath)
         {
             this.SavePath = SavePath;
             CurrentDirectory = SavePath;
+            progressTracker = new ProgressTracker();
+            IsFirstIteration = true;
         }
 
         public async Task ExecuteAsync(TcpClient client)
@@ -30,22 +34,49 @@ namespace Server_Control.assets.Commands
 
                 if (Name.Contains("."))
                 {
-                    await ReciveFileAsync(client, Path.Combine(CurrentDirectory, Name), progressTracker);
+                    if (IsFirstIteration) 
+                    {
+                        IsFirstIteration = false;
+                        await ReciveFileAsync(client, Path.Combine(CurrentDirectory, Name), progressTracker, true);
+                    }
+                    else
+                    {
+                        IsFirstIteration = false;
+                        await ReciveFileAsync(client, Path.Combine(CurrentDirectory, Name), progressTracker);
+                    }
                 }
                 else
                 {
+                    IsFirstIteration = false;
+
                     progressTracker.TotalBytes = reader.ReadInt64();
-                    Console.Write($"Размер принимаемой папки - ");
+
+                    Console.Write($"Размер принимаемой единицы - ");
                     Console.ForegroundColor = ConsoleColor.Green;
-                    Console.Write($"{progressTracker.TotalBytes / (1024 * 1024)} Мб\n");
+                    Console.Write($"{Math.Round(progressTracker.TotalBytes / (double)(1024 * 1024), 2)} Мб\n");
                     Console.ResetColor();
+
                     await ReciveDirectoryAsync(client, Name);
                 }
+            }
+            catch (SocketException)
+            {
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.WriteLine($"\nКлиент {client.Client.RemoteEndPoint} отключился c UUID {Server.clientList.FirstOrDefault(x => x.Value == client).Key} в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
+                Console.ResetColor();
+                Server.clientList.TryRemove(Server.clientList.FirstOrDefault(x => x.Value == client).Key, out _);
+            }
+            catch (IOException)
+            {
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.WriteLine($"\nКлиент {client.Client.RemoteEndPoint} отключился c UUID {Server.clientList.FirstOrDefault(x => x.Value == client).Key} в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
+                Console.ResetColor();
+                Server.clientList.TryRemove(Server.clientList.FirstOrDefault(x => x.Value == client).Key, out _);
             }
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка 1" + ex.Message);
+                Console.WriteLine($"Ошибка 1 " + ex.Message);
                 Console.ResetColor();
             }
         }
@@ -75,63 +106,80 @@ namespace Server_Control.assets.Commands
                 CurrentDirectory = Directory.GetParent(CurrentDirectory).FullName;
 
             }
+            catch (SocketException)
+            {
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.WriteLine($"\nКлиент {client.Client.RemoteEndPoint} отключился c UUID {Server.clientList.FirstOrDefault(x => x.Value == client).Key} в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
+                Console.ResetColor();
+                Server.clientList.TryRemove(Server.clientList.FirstOrDefault(x => x.Value == client).Key, out _);
+            }
+            catch (IOException)
+            {
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.WriteLine($"\nКлиент {client.Client.RemoteEndPoint} отключился c UUID {Server.clientList.FirstOrDefault(x => x.Value == client).Key} в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
+                Console.ResetColor();
+                Server.clientList.TryRemove(Server.clientList.FirstOrDefault(x => x.Value == client).Key, out _);
+            }
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка 2" + ex.Message);
+                Console.WriteLine($"Ошибка 2 " + ex.Message);
                 Console.ResetColor();
             }
         }
 
-        public async Task ReciveFileAsync(TcpClient client, string file, ProgressTracker progressTracker)
+        public async Task ReciveFileAsync(TcpClient client, string file, ProgressTracker progressTracker, bool IsFullFile = false)
         {
             try
             {
                 BinaryReader reader = new BinaryReader(client.GetStream());
                 long fileSize = reader.ReadInt64();
 
-                if (fileSize > 250 * 1024 * 1024)
+                if(IsFullFile)
                 {
-                    using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
+                    progressTracker.TotalBytes = fileSize;
+
+                    Console.Write($"Размер принимаемой единицы - ");
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.Write($"{Math.Round(progressTracker.TotalBytes / (double)(1024 * 1024), 2)} Мб\n");
+                    Console.ResetColor();
+                }
+
+                using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
+                {
+                    byte[] buffer = new byte[65536];
+                    long totalBytesReceived = 0;
+                    int bytesRead;
+
+                    while (totalBytesReceived < fileSize)
                     {
-                        byte[] buffer = new byte[150 * 1024 * 1024];
-                        long totalBytesReceived = 0;
-                        int bytesRead;
+                        int bytesToRead = (int)Math.Min(fileSize - totalBytesReceived, buffer.Length);
+                        bytesRead = await client.GetStream().ReadAsync(buffer, 0, bytesToRead);
+                        await fileStream.WriteAsync(buffer, 0, bytesRead);
+                        totalBytesReceived += bytesRead;
 
-                        while (totalBytesReceived < fileSize)
-                        {
-                            int bytesToRead = (int)Math.Min(fileSize - totalBytesReceived, buffer.Length);
-                            bytesRead = await client.GetStream().ReadAsync(buffer, 0, bytesToRead);
-                            await fileStream.WriteAsync(buffer, 0, bytesRead);
-                            totalBytesReceived += bytesRead;
-
-                            await Task.Factory.StartNew(() => progressTracker.GetProgress(bytesRead, ProgressPerforms.Recive));
-                        }
+                        progressTracker.GetProgress(bytesRead, ProgressPerforms.Recive);
                     }
                 }
-                else
-                {
-                    using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
-                    {
-                        byte[] buffer = new byte[fileSize];
-                        int bytesRead;
-                        long totalBytesRead = 0;
-
-                        while (totalBytesRead < fileSize)
-                        {
-                            bytesRead = await client.GetStream().ReadAsync(buffer, 0, buffer.Length);
-                            await fileStream.WriteAsync(buffer, 0, bytesRead);
-                            totalBytesRead += bytesRead;
-
-                            await Task.Factory.StartNew(() => progressTracker.GetProgress(bytesRead, ProgressPerforms.Recive));
-                        }
-                    }
-                }
+            }
+            catch (SocketException)
+            {
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.WriteLine($"\nКлиент {client.Client.RemoteEndPoint} отключился c UUID {Server.clientList.FirstOrDefault(x => x.Value == client).Key} в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
+                Console.ResetColor();
+                Server.clientList.TryRemove(Server.clientList.FirstOrDefault(x => x.Value == client).Key, out _);
+            }
+            catch (IOException)
+            {
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.WriteLine($"\nКлиент {client.Client.RemoteEndPoint} отключился c UUID {Server.clientList.FirstOrDefault(x => x.Value == client).Key} в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
+                Console.ResetColor();
+                Server.clientList.TryRemove(Server.clientList.FirstOrDefault(x => x.Value == client).Key, out _);
             }
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка 3" + ex.Message);
+                Console.WriteLine($"Ошибка 3 " + ex.Message);
                 Console.ResetColor();
             }
         }
@@ -140,10 +188,12 @@ namespace Server_Control.assets.Commands
     public class SendCommand : ICommand
     {
         public readonly string SendPath;
+        private ProgressTracker progressTracker;
 
         public SendCommand(string SendPath)
         {
             this.SendPath = SendPath;
+            progressTracker = new ProgressTracker(SendPath);
         }
 
         public async Task ExecuteAsync(TcpClient client)
@@ -152,19 +202,31 @@ namespace Server_Control.assets.Commands
             {
                 if (File.Exists(SendPath))
                 {
-                    ProgressTracker progressTracker = new ProgressTracker(SendPath);
-
-                    await SendFileAsync(client, SendPath, Path.GetFileName(SendPath), progressTracker);
+                    await SendFileAsync(client, SendPath, Path.GetFileName(SendPath), true);
                 }
                 else
                 {
                     await SendDirectoryAsync(client, SendPath, Path.GetFileName(SendPath));
                 }
             }
+            catch (SocketException)
+            {
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.WriteLine($"\nКлиент {client.Client.RemoteEndPoint} отключился c UUID {Server.clientList.FirstOrDefault(x => x.Value == client).Key} в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
+                Console.ResetColor();
+                Server.clientList.TryRemove(Server.clientList.FirstOrDefault(x => x.Value == client).Key, out _);
+            }
+            catch (IOException)
+            {
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.WriteLine($"\nКлиент {client.Client.RemoteEndPoint} отключился c UUID {Server.clientList.FirstOrDefault(x => x.Value == client).Key} в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
+                Console.ResetColor();
+                Server.clientList.TryRemove(Server.clientList.FirstOrDefault(x => x.Value == client).Key, out _);
+            }
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка 4" + ex.Message);
+                Console.WriteLine($"Ошибка 4 " + ex.Message);
                 Console.ResetColor();
             }
         }
@@ -173,13 +235,18 @@ namespace Server_Control.assets.Commands
         {
             try
             {
-                ProgressTracker progressTracker = new ProgressTracker(directory);
                 BinaryWriter writer = new BinaryWriter(client.GetStream());
 
+                long SizeDirectory = GetDirectorySize(directory);
                 writer.Write(directoryName);
-                writer.Write(GetDirectorySize(directory));
+                writer.Write(SizeDirectory);
                 writer.Write(Directory.GetDirectories(directory).Length);
                 writer.Write(Directory.GetFiles(directory).Length);
+
+                Console.Write($"Размер отправляемой еденицы - ");
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.Write($"{Math.Round(SizeDirectory / (double)(1024 * 1024), 2)} Мб\n");
+                Console.ResetColor();
 
                 foreach (string subDirectory in Directory.GetDirectories(directory))
                 {
@@ -189,17 +256,31 @@ namespace Server_Control.assets.Commands
 
                 foreach (string fileName in Directory.GetFiles(directory))
                 {
-                    await SendFileAsync(client, fileName, Path.GetFileName(fileName), progressTracker);
+                    await SendFileAsync(client, fileName, Path.GetFileName(fileName));
                 }
+            }
+            catch (SocketException)
+            {
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.WriteLine($"\nКлиент {client.Client.RemoteEndPoint} отключился c UUID {Server.clientList.FirstOrDefault(x => x.Value == client).Key} в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
+                Console.ResetColor();
+                Server.clientList.TryRemove(Server.clientList.FirstOrDefault(x => x.Value == client).Key, out _);
+            }
+            catch (IOException)
+            {
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.WriteLine($"\nКлиент {client.Client.RemoteEndPoint} отключился c UUID {Server.clientList.FirstOrDefault(x => x.Value == client).Key} в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
+                Console.ResetColor();
+                Server.clientList.TryRemove(Server.clientList.FirstOrDefault(x => x.Value == client).Key, out _);
             }
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка 5" + ex.Message);
+                Console.WriteLine($"Ошибка 5 " + ex.Message);
                 Console.ResetColor();
             }
         }
-        public async Task SendFileAsync(TcpClient client, string file, string fileName, ProgressTracker progressTracker)
+        public async Task SendFileAsync(TcpClient client, string file, string fileName, bool IsFullFile = false)
         {
             try
             {
@@ -215,36 +296,26 @@ namespace Server_Control.assets.Commands
                     writer.Write(fileName);
                     writer.Write(fileSize);
 
-                    if (fileSize > 250 * 1024 * 1024)
+                    if(IsFullFile) 
                     {
-                        using (FileStream fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
-                        {
-
-                            while (totalBytesSent < fileSize)
-                            {
-                                byte[] buffer = new byte[150 * 1024 * 1024];
-                                int bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length);
-                                totalBytesSent += bytesRead;
-
-                                await client.GetStream().WriteAsync(buffer, 0, bytesRead);
-                                bytesSent = bytesRead;
-
-                                await Task.Factory.StartNew(() => progressTracker.GetProgress(bytesRead, ProgressPerforms.Send));
-                            }
-                        }
+                        Console.Write($"Размер отправляемой еденицы - ");
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.Write($"{Math.Round(progressTracker.TotalBytes / (double)(1024 * 1024), 2)} Мб\n");
+                        Console.ResetColor();
                     }
-                    else
-                    {
-                        using (FileStream fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
-                        {
-                            byte[] buffer = new byte[fileSize];
-                            int bytesRead;
 
-                            while ((bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
-                            {
-                                await client.GetStream().WriteAsync(buffer, 0, bytesRead);
-                                await Task.Factory.StartNew(() => progressTracker.GetProgress(bytesRead, ProgressPerforms.Send));
-                            }
+                    using (FileStream fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
+                    {
+                        while (totalBytesSent < fileSize)
+                        {
+                            byte[] buffer = new byte[65536];
+                            int bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length);
+                            totalBytesSent += bytesRead;
+
+                            await client.GetStream().WriteAsync(buffer, 0, bytesRead);
+                            bytesSent = bytesRead;
+
+                            progressTracker.GetProgress(bytesRead, ProgressPerforms.Send);
                         }
                     }
                 }
@@ -253,10 +324,24 @@ namespace Server_Control.assets.Commands
                     await Console.Out.WriteLineAsync("Файл не найден по указанному пути");
                 }
             }
+            catch (SocketException)
+            {
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.WriteLine($"\nКлиент {client.Client.RemoteEndPoint} отключился c UUID {Server.clientList.FirstOrDefault(x => x.Value == client).Key} в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
+                Console.ResetColor();
+                Server.clientList.TryRemove(Server.clientList.FirstOrDefault(x => x.Value == client).Key, out _);
+            }
+            catch (IOException)
+            {
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.WriteLine($"\nКлиент {client.Client.RemoteEndPoint} отключился c UUID {Server.clientList.FirstOrDefault(x => x.Value == client).Key} в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
+                Console.ResetColor();
+                Server.clientList.TryRemove(Server.clientList.FirstOrDefault(x => x.Value == client).Key, out _);
+            }
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка 6" + ex.Message);
+                Console.WriteLine($"Ошибка 6 " + ex.Message);
                 Console.ResetColor();
             }
         }

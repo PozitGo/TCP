@@ -3,7 +3,7 @@ using System.IO;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 
-namespace ClientRecive
+namespace ClientRecive.assets.Commands
 {
     public interface ICommand
     {
@@ -30,7 +30,7 @@ namespace ClientRecive
 
                 if (Name.Contains("."))
                 {
-                   await ReciveFileAsync(client, Path.Combine(CurrentDirectory, Name));
+                    await ReciveFileAsync(client, Path.Combine(CurrentDirectory, Name));
                 }
                 else
                 {
@@ -105,38 +105,18 @@ namespace ClientRecive
                 BinaryReader reader = new BinaryReader(client.GetStream());
                 long fileSize = reader.ReadInt64();
 
-                if (fileSize > 250 * 1024 * 1024)
+                using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
                 {
-                    using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
-                    {
-                        byte[] buffer = new byte[150 * 1024 * 1024];
-                        long totalBytesReceived = 0;
-                        int bytesRead;
-                        bool isFirstIteration = true;
+                    byte[] buffer = new byte[65536];
+                    long totalBytesReceived = 0;
+                    int bytesRead;
 
-                        while (totalBytesReceived < fileSize)
-                        {
-                            int bytesToRead = (int)Math.Min(fileSize - totalBytesReceived, buffer.Length);
-                            bytesRead = await client.GetStream().ReadAsync(buffer, 0, bytesToRead);
-                            await fileStream.WriteAsync(buffer, 0, bytesRead);
-                            totalBytesReceived += bytesRead;
-                        }
-                    }
-                }
-                else
-                {
-                    using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
+                    while (totalBytesReceived < fileSize)
                     {
-                        byte[] buffer = new byte[fileSize];
-                        int bytesRead;
-                        long totalBytesRead = 0;
-
-                        while (totalBytesRead < fileSize)
-                        {
-                            bytesRead = await client.GetStream().ReadAsync(buffer, 0, buffer.Length);
-                            await fileStream.WriteAsync(buffer, 0, bytesRead);
-                            totalBytesRead += bytesRead;
-                        }
+                        int bytesToRead = (int)Math.Min(fileSize - totalBytesReceived, buffer.Length);
+                        bytesRead = await client.GetStream().ReadAsync(buffer, 0, bytesToRead);
+                        await fileStream.WriteAsync(buffer, 0, bytesRead);
+                        totalBytesReceived += bytesRead;
                     }
                 }
             }
@@ -236,32 +216,16 @@ namespace ClientRecive
                     writer.Write(fileName);
                     writer.Write(fileSize);
 
-                    if (fileSize > 250 * 1024 * 1024)
+                    using (FileStream fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
                     {
-                        using (FileStream fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
+                        while (totalBytesSent < fileSize)
                         {
-                            while (totalBytesSent < fileSize)
-                            {
-                                byte[] buffer = new byte[150 * 1024 * 1024];
-                                int bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length);
-                                totalBytesSent += bytesRead;
+                            byte[] buffer = new byte[65536];
+                            int bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length);
+                            totalBytesSent += bytesRead;
 
-                                await client.GetStream().WriteAsync(buffer, 0, bytesRead);
-                                bytesSent = bytesRead;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        using (FileStream fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
-                        {
-                            byte[] buffer = new byte[fileSize];
-                            int bytesRead;
-
-                            while ((bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
-                            {
-                                await client.GetStream().WriteAsync(buffer, 0, bytesRead);
-                            }
+                            await client.GetStream().WriteAsync(buffer, 0, bytesRead);
+                            bytesSent = bytesRead;
                         }
                     }
                 }

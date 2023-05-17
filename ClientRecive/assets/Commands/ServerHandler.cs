@@ -1,9 +1,10 @@
 ﻿using System;
 using System.IO;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 
-namespace ClientRecive
+namespace ClientRecive.assets.Commands
 {
     public class ServerHandler
     {
@@ -38,24 +39,35 @@ namespace ClientRecive
         {
             try
             {
-                string command = await Client.ReceiveMessageFromServer(client);
+                string[] Data = default;
+                string Value = await Client.ReceiveMessageFromServer(client);
 
-                switch (command)
+                if (Value != "$stop")
+                {
+                    Data = Value.Split(' ');
+                }
+                else
+                {
+                    client.Close();
+                    await Console.Out.WriteLineAsync("\nСервер сообщил о прекращении работы, начало переподключения...");
+                    Thread.Sleep(5000);
+                    await Start.client.Connect();
+                }
+
+                switch (Data[0])
                 {
                     case "$download":
 
-                        string SendPath = await Client.ReceiveMessageFromServer(client);
+                        string SendPath = Data[1];
 
-                        if (SendPath is "$exit")
+                        if (File.Exists(SendPath) || Directory.Exists(SendPath))
                         {
-                            return null;
-                        }
-                        else if (File.Exists(SendPath) || Directory.Exists(SendPath))
-                        {
+                            await Client.SendClientMessage(client, "$success");
                             return new SendCommand(SendPath);
                         }
                         else
                         {
+                            await Client.SendClientMessage(client, "$error");
                             Console.WriteLine($"Путь для отправки клиенту некорректен - {SendPath}");
                         }
 
@@ -63,18 +75,16 @@ namespace ClientRecive
 
                     case "$upload":
 
-                        string SavePath = await Client.ReceiveMessageFromServer(client);
+                        string SavePath = Data[1];
 
-                        if (SavePath is "$exit")
+                        if (Directory.Exists(SavePath))
                         {
-                            return null;
-                        }
-                        else if (Directory.Exists(SavePath))
-                        {
+                            await Client.SendClientMessage(client, "$success");
                             return new ReciveCommand(SavePath);
                         }
                         else
                         {
+                            await Client.SendClientMessage(client, "$error");
                             Console.WriteLine($"Путь для получения файла от клиента некорректен - {SavePath}");
                         }
 
@@ -82,24 +92,22 @@ namespace ClientRecive
 
                     case "$delete":
 
-                        string ReciveDeletePath = await Client.ReceiveMessageFromServer(client);
+                        string ReciveDeletePath = Data[1];
 
-                        if (ReciveDeletePath is "$exit")
+                        if (Directory.Exists(ReciveDeletePath) || File.Exists(ReciveDeletePath))
                         {
-                            return null;
-                        }
-                        else if (Directory.Exists(ReciveDeletePath) || File.Exists(ReciveDeletePath))
-                        {
+                            await Client.SendClientMessage(client, "$success");
                             return new DeleteReciveCommand(ReciveDeletePath);
                         }
                         else
                         {
+                            await Client.SendClientMessage(client, "$error");
                             Console.WriteLine($"Путь для удаления файла от клиента некорректен - {ReciveDeletePath}");
                         }
 
                         break;
                     default:
-                        Console.WriteLine($"Неизвестная команда: {command}");
+                        Console.WriteLine($"Неизвестная команда: {Data[0]}");
                         return null;
                 }
 
@@ -120,6 +128,8 @@ namespace ClientRecive
             {
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"\nОшибка " + ex.Message);
+                await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться");
+                await Start.client.Connect();
                 Console.ResetColor();
             }
 
