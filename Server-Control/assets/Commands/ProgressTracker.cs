@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 
-namespace Server_Control.assets
+namespace Server_Control.assets.Commands
 {
     public class ProgressTracker
     {
@@ -47,19 +47,19 @@ namespace Server_Control.assets
         }
         public void GetProgress(long bytesProcessed, ProgressPerforms performs)
         {
-            if (this.Progress < 100)
+            if (Progress < 100)
             {
-                this.BytesSend += bytesProcessed;
-                this.Progress = (int)Math.Round(this.BytesSend / (double)TotalBytes * 100, 0);
+                BytesSend += bytesProcessed;
+                Progress = (int)Math.Round(BytesSend / (double)TotalBytes * 100, 0);
 
                 switch (performs)
                 {
                     case ProgressPerforms.Send:
                         Console.ForegroundColor = ConsoleColor.Blue;
-                        Console.Write($"\rПрогресс отправки - {this.Progress}%".PadRight(Console.WindowWidth));
+                        Console.Write($"\rПрогресс отправки - {Progress}%".PadRight(Console.WindowWidth));
                         Console.ResetColor();
 
-                        if (this.Progress is 100)
+                        if (Progress is 100)
                         {
                             Console.ForegroundColor = ConsoleColor.Green;
                             Console.WriteLine("\nВсе файлы успешно отправлены.");
@@ -70,10 +70,10 @@ namespace Server_Control.assets
 
                     case ProgressPerforms.Recive:
                         Console.ForegroundColor = ConsoleColor.Blue;
-                        Console.Write($"\rПрогресс получения - {this.Progress}%".PadRight(Console.WindowWidth));
+                        Console.Write($"\rПрогресс получения - {Progress}%".PadRight(Console.WindowWidth));
                         Console.ResetColor();
 
-                        if (this.Progress is 100)
+                        if (Progress is 100)
                         {
                             Console.ForegroundColor = ConsoleColor.Green;
                             Console.WriteLine("\nВсе файлы успешно получены.");

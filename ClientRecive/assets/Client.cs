@@ -1,11 +1,12 @@
-﻿using System;
+﻿using ClientRecive.assets.Commands;
+using System;
+using System.DirectoryServices.ActiveDirectory;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using ClientRecive.assets.Commands;
 
 namespace ClientRecive.assets
 {
@@ -19,6 +20,21 @@ namespace ClientRecive.assets
         {
             ipClient = iPAddress;
             this.portClient = portClient;
+        }
+
+        public Client(string Domain, int portClient)
+        {
+            try
+            {
+                this.ipClient = Dns.GetHostAddresses(Domain)[0];
+                this.portClient = portClient;
+            }
+            catch (Exception)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("Ошибка домена");
+                Console.ResetColor();
+            }
         }
 
         public async Task Connect()
@@ -75,14 +91,13 @@ namespace ClientRecive.assets
         {
             try
             {
-
                 NetworkStream stream = client.GetStream();
 
                 while (client.Connected)
                 {
                     if (stream.DataAvailable)
                     {
-                        byte[] buffer = new byte[4096];
+                        byte[] buffer = new byte[8192];
                         int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
 
                         string base64String = Encoding.UTF8.GetString(buffer, 0, bytesRead);
@@ -108,7 +123,7 @@ namespace ClientRecive.assets
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Ошибка " + ex.Message);
+                Console.WriteLine($"Ошибка получения" + ex.Message);
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться...");
                 await Start.client.Connect();
             }
@@ -136,7 +151,7 @@ namespace ClientRecive.assets
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Ошибка " + ex.Message);
+                Console.WriteLine($"Ошибка отпрвки " + ex.Message);
                 await Console.Out.WriteLineAsync("\nСоединение с сервером потеряно, попытка переподключиться...");
                 await Start.client.Connect();
             }

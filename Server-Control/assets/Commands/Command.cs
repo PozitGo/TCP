@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace Server_Control.assets.Commands
@@ -30,11 +31,11 @@ namespace Server_Control.assets.Commands
             {
                 BinaryReader reader = new BinaryReader(client.GetStream());
 
-                string Name = reader.ReadString();
+                string Name = Encoding.UTF8.GetString(Convert.FromBase64String(reader.ReadString()));
 
                 if (Name.Contains("."))
                 {
-                    if (IsFirstIteration) 
+                    if (IsFirstIteration)
                     {
                         IsFirstIteration = false;
                         await ReciveFileAsync(client, Path.Combine(CurrentDirectory, Name), progressTracker, true);
@@ -49,7 +50,7 @@ namespace Server_Control.assets.Commands
                 {
                     IsFirstIteration = false;
 
-                    progressTracker.TotalBytes = reader.ReadInt64();
+                    progressTracker.TotalBytes = Convert.ToInt64(Encoding.UTF8.GetString(Convert.FromBase64String(reader.ReadString())));
 
                     Console.Write($"Размер принимаемой единицы - ");
                     Console.ForegroundColor = ConsoleColor.Green;
@@ -76,7 +77,7 @@ namespace Server_Control.assets.Commands
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка 1 " + ex.Message);
+                Console.WriteLine($"\nОшибка 1 " + ex.Message);
                 Console.ResetColor();
             }
         }
@@ -87,8 +88,8 @@ namespace Server_Control.assets.Commands
             {
                 BinaryReader reader = new BinaryReader(client.GetStream());
 
-                int CountDirectories = reader.ReadInt32();
-                int CountFiles = reader.ReadInt32();
+                int CountDirectories = Convert.ToInt32(Encoding.UTF8.GetString(Convert.FromBase64String(reader.ReadString())));
+                int CountFiles = Convert.ToInt32(Encoding.UTF8.GetString(Convert.FromBase64String(reader.ReadString())));
 
                 CurrentDirectory = Path.Combine(CurrentDirectory, directory);
                 Directory.CreateDirectory(CurrentDirectory);
@@ -123,7 +124,7 @@ namespace Server_Control.assets.Commands
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка 2 " + ex.Message);
+                Console.WriteLine($"\nОшибка 2 " + ex.Message);
                 Console.ResetColor();
             }
         }
@@ -133,9 +134,9 @@ namespace Server_Control.assets.Commands
             try
             {
                 BinaryReader reader = new BinaryReader(client.GetStream());
-                long fileSize = reader.ReadInt64();
+                long fileSize = Convert.ToInt64(Encoding.UTF8.GetString(Convert.FromBase64String(reader.ReadString())));
 
-                if(IsFullFile)
+                if (IsFullFile)
                 {
                     progressTracker.TotalBytes = fileSize;
 
@@ -161,6 +162,7 @@ namespace Server_Control.assets.Commands
                         progressTracker.GetProgress(bytesRead, ProgressPerforms.Recive);
                     }
                 }
+
             }
             catch (SocketException)
             {
@@ -179,7 +181,7 @@ namespace Server_Control.assets.Commands
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка 3 " + ex.Message);
+                Console.WriteLine($"\nОшибка 3 " + ex.Message);
                 Console.ResetColor();
             }
         }
@@ -226,7 +228,7 @@ namespace Server_Control.assets.Commands
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка 4 " + ex.Message);
+                Console.WriteLine($"\nОшибка 4 " + ex.Message);
                 Console.ResetColor();
             }
         }
@@ -238,10 +240,10 @@ namespace Server_Control.assets.Commands
                 BinaryWriter writer = new BinaryWriter(client.GetStream());
 
                 long SizeDirectory = GetDirectorySize(directory);
-                writer.Write(directoryName);
-                writer.Write(SizeDirectory);
-                writer.Write(Directory.GetDirectories(directory).Length);
-                writer.Write(Directory.GetFiles(directory).Length);
+                writer.Write(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(directoryName)));
+                writer.Write(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(SizeDirectory.ToString())));
+                writer.Write(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes((Directory.GetDirectories(directory).Length.ToString()))));
+                writer.Write(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(Directory.GetFiles(directory).Length.ToString())));
 
                 Console.Write($"Размер отправляемой еденицы - ");
                 Console.ForegroundColor = ConsoleColor.Green;
@@ -276,7 +278,7 @@ namespace Server_Control.assets.Commands
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка 5 " + ex.Message);
+                Console.WriteLine($"\nОшибка 5 " + ex.Message);
                 Console.ResetColor();
             }
         }
@@ -293,10 +295,10 @@ namespace Server_Control.assets.Commands
                     long totalBytesSent = 0;
                     int bytesSent;
 
-                    writer.Write(fileName);
-                    writer.Write(fileSize);
+                    writer.Write(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(fileName)));
+                    writer.Write(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(fileSize.ToString())));
 
-                    if(IsFullFile) 
+                    if (IsFullFile)
                     {
                         Console.Write($"Размер отправляемой еденицы - ");
                         Console.ForegroundColor = ConsoleColor.Green;
@@ -341,7 +343,7 @@ namespace Server_Control.assets.Commands
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка 6 " + ex.Message);
+                Console.WriteLine($"\nОшибка 6 " + ex.Message);
                 Console.ResetColor();
             }
         }
@@ -365,5 +367,216 @@ namespace Server_Control.assets.Commands
             return size;
         }
 
+    }
+
+    class ProcessCommand : ICommand
+    {
+        private readonly string Command;
+        private readonly string Arguments;
+
+        public ProcessCommand(string Command, string Arguments)
+        {
+            this.Command = Command;
+            this.Arguments = Arguments;
+        }
+
+        public async Task ExecuteAsync(TcpClient client)
+        {
+            switch (this.Command)
+            {
+                case "$ProcessKill":
+
+                    await KillProcess(client, Arguments);
+
+                    break;
+                case "$GetProcess":
+
+                    await GetProcess(client);
+
+                    break;
+                case "$StartProcess":
+
+                    await StartProcess(client, Arguments);
+
+                    break;
+                case "$InfoProcess":
+
+                    await InfoProcess(client, Arguments);
+
+                    break;
+                default:
+                    Console.WriteLine($"Не существует комманды {Command} для работы с процессами");
+                    break;
+            }
+        }
+
+        private async Task GetProcess(TcpClient client)
+        {
+            await MessageServer.SendMessageToClient(client, Command);
+
+            BinaryReader binaryReader = new BinaryReader(client.GetStream());
+            int CountProcess = Convert.ToInt32(Encoding.UTF8.GetString(Convert.FromBase64String(binaryReader.ReadString())));
+
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("Список запущенных процессов у клиента:");
+            Console.ResetColor();
+
+            Console.ForegroundColor = ConsoleColor.DarkGreen;
+
+            for (int i = 0; i < CountProcess; i++)
+            {
+                SerializableProcess process = ProcessSerializer.DeserializeProcess(binaryReader.ReadString());
+                Console.WriteLine($"Name: {process.ProcessName}, Id: {process.Id}, StartTime: {process.StartTime}, UsesRAM: {process.UsesRAM} Мб, FilePath: {process.FilePath}");
+            }
+
+            Console.ResetColor();
+        }
+
+        private async Task KillProcess(TcpClient client, string Id)
+        {
+            await MessageServer.SendMessageToClient(client, $"{Command} {Id}");
+
+            if (await MessageServer.ReadClientMessage(client) is "$success")
+            {
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine($"Процесс с ID: {Id} успешно закрыт");
+                Console.ResetColor();
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("Ошибка закрытия процесса");
+                Console.ResetColor();
+            }
+        }
+
+        private async Task StartProcess(TcpClient client, string Arguments)
+        {
+            await MessageServer.SendMessageToClient(client, $"{Command} {Arguments}");
+
+            if (await MessageServer.ReadClientMessage(client) is "$success")
+            {
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine($"Процесс успешно запущен");
+                Console.ResetColor();
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("Ошибка запуска процесса");
+                Console.ResetColor();
+            }
+        }
+
+        private async Task InfoProcess(TcpClient client, string Id)
+        {
+            await MessageServer.SendMessageToClient(client, $"{Command} {Id}");
+
+            BinaryReader binaryReader = new BinaryReader(client.GetStream());
+
+            if (int.TryParse(Id, out int value))
+            {
+                SerializableProcess process = ProcessSerializer.DeserializeProcess(binaryReader.ReadString());
+
+                Console.ForegroundColor = ConsoleColor.DarkGreen;
+                Console.WriteLine($"\nName: {process.ProcessName}\nId: {process.Id}\nStartTime: {process.StartTime}\nUsesRAM: {process.UsesRAM} Мб\nFilePath: {process.FilePath}");
+                Console.ResetColor();
+            }
+            else
+            {
+
+                int CountProcess = Convert.ToInt32(Encoding.UTF8.GetString(Convert.FromBase64String(binaryReader.ReadString())));
+
+                for (int i = 0; i < CountProcess; i++)
+                {
+                    SerializableProcess process = ProcessSerializer.DeserializeProcess(binaryReader.ReadString());
+
+                    Console.ForegroundColor = ConsoleColor.DarkGreen;
+                    Console.WriteLine($"\nName: {process.ProcessName}\nId: {process.Id}\nStartTime: {process.StartTime}\nUsesRAM: {process.UsesRAM} Мб\nFilePath: {process.FilePath}");
+                    Console.ResetColor();
+                }
+            }
+        }
+    }
+
+    class MusicCommand : ICommand
+    {
+        public async Task ExecuteAsync(TcpClient client)
+        {
+            try
+            {
+                if (MessageServer.ReadClientMessage(client).Result is "$success")
+                {
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine("Трек успешно запущен");
+                    Console.ResetColor();
+
+                    string Command = default;
+
+                    do
+                    {
+                        Console.WriteLine($"Введите команду $Pstop чтобы остановить проигрывание");
+                        Command = Console.ReadLine();
+
+                    } while (!(Command is "$Pstop"));
+
+                    await MessageServer.SendMessageToClient(client, Command);
+
+                    if (MessageServer.ReadClientMessage(client).Result is "$success")
+                    {
+
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine("Трек успешно остановлен");
+                        Console.ResetColor();
+                    }
+                    else
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine("Ошибка остановки трека");
+                        Console.ResetColor();
+                    }
+                }
+                else
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine("Ошибка запуска трека");
+                    Console.ResetColor();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Ошибка при проигрывании трека: " + ex.Message);
+            }
+        }
+    }
+
+    class WallpaperCommand : ICommand
+    {
+        public Task ExecuteAsync(TcpClient client)
+        {
+            try
+            {
+                if (MessageServer.ReadClientMessage(client).Result is "$success")
+                {
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine("Обои успешно сменены");
+                    Console.ResetColor();
+                }
+                else
+                {
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine("Ошибка установки обоев");
+                    Console.ResetColor();
+                }
+            }
+            catch (Exception)
+            {
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("Ошибка установки обоев");
+                Console.ResetColor();
+            }
+
+            return Task.CompletedTask;
+        }
     }
 }

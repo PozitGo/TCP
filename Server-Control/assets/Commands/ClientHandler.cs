@@ -1,9 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Net.Sockets;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Server_Control.assets.Commands
@@ -21,7 +19,7 @@ namespace Server_Control.assets.Commands
             this.client = client;
         }
 
-        public ClientHandler(TcpClient client, string UUID, string Command, string Arguments)
+        public ClientHandler(TcpClient client, string UUID, string Command, string Arguments = null)
         {
             this.UUID = UUID;
             this.client = client;
@@ -44,106 +42,104 @@ namespace Server_Control.assets.Commands
         {
             try
             {
-                if(usage is Usage.Disposable)
+                switch (usage)
                 {
-                    while (Server.clientList.ContainsKey(UUID))
-                    {
-                        string command = null;
+                    case Usage.Disposable:
 
-                        Console.ForegroundColor = ConsoleColor.DarkYellow;
-                        Console.WriteLine("\nВведите команду ($download/$upload/$delete) а так же аргументы:");
-                        Console.WriteLine("Для выхода из клиента - $exit");
-                        Console.ResetColor();
-
-                        do
+                        while (Server.clientList.ContainsKey(UUID))
                         {
-                            command = Console.ReadLine();
+                            string command = null;
 
-                        } while (string.IsNullOrEmpty(command) && command.All(c => c == ' '));
+                            Console.ForegroundColor = ConsoleColor.DarkYellow;
+                            Console.WriteLine("\nВведите команду ($download/$upload/$delete) и аргументы:");
+                            Console.WriteLine("Для выхода из клиента - $exit");
+                            Console.ResetColor();
 
-                        if (command.Split(' ').Length is 2)
-                        {
-                            ICommand commandHandler = await GetCommandToClientHandler(client, command.Split(' ')[0], command.Split(' ')[1]);
-
-                            if (commandHandler != null)
+                            do
                             {
-                                await commandHandler.ExecuteAsync(client);
+                                command = Console.ReadLine();
+
+                            } while (string.IsNullOrEmpty(command) && command.All(c => c == ' '));
+
+                            if (command != "$exit")
+                            {
+                                if (command.Split(' ').Length is 2)
+                                {
+                                    ICommand commandHandler = await GetCommandToClientHandler(client, command.Split(' ')[0], command.Split(' ')[1]);
+
+                                    if (commandHandler != null)
+                                    {
+                                        await commandHandler.ExecuteAsync(client);
+                                    }
+                                }
+                                else if (command.Contains("$"))
+                                {
+                                    ICommand commandHandler = await GetCommandToClientHandler(client, command.Split(' ')[0]);
+
+                                    if (commandHandler != null)
+                                    {
+                                        await commandHandler.ExecuteAsync(client);
+                                    }
+                                }
+                                else
+                                {
+                                    Console.ForegroundColor = ConsoleColor.Red;
+                                    Console.WriteLine("Команда введена не верно");
+                                    Console.ResetColor();
+                                    continue;
+                                }
+                            }
+                            else
+                            {
+                                return;
                             }
                         }
-                        else if (command is "$exit")
-                        {
-                            return;
-                        }
-                        else
-                        {
-                            Console.ForegroundColor = ConsoleColor.Red;
-                            Console.WriteLine("Команда введена не верно");
-                            Console.ResetColor();
-                            continue;
-                        }
-                    }
-                }
-                else if(usage is Usage.Reusable)
-                {
 
-                    if(Server.clientList.ContainsKey(UUID))
-                    {
-                        if (!string.IsNullOrEmpty(Command) && !string.IsNullOrEmpty(Arguments))
-                        {
-                            ICommand commandHandler = await GetCommandToClientHandler(client, Command, Arguments);
+                        break;
+                    case Usage.Reusable:
 
-                            if (commandHandler != null)
-                            {
-                                await commandHandler.ExecuteAsync(client);
-                            }
-                        }
-                        else
+                        if (Server.clientList.ContainsKey(UUID))
                         {
-                            Console.ForegroundColor = ConsoleColor.Red;
-                            Console.WriteLine($"Получены некорректный аргументы либо команда");
-                            Console.ResetColor();
-                            return;
-                        }
-                    }
-                    else
-                    {
-                        return;
-                    }
-                }
-                else
-                {
-                    if (!string.IsNullOrEmpty(Command))
-                    {
-                        if (!string.IsNullOrEmpty(Arguments))
-                        {
-                            foreach (var client in Server.clientList)
+                            if (!string.IsNullOrEmpty(Command))
                             {
-                                Console.ForegroundColor = ConsoleColor.Magenta;
-                                Console.WriteLine($"\nОтправка команды клиену {client.Key}");
-                                Console.ResetColor();
-                                ICommand commandHandler = await GetCommandToClientHandler(client.Value, Command, Arguments);
+                                ICommand commandHandler = await GetCommandToClientHandler(client, Command, !string.IsNullOrEmpty(Arguments) ? Arguments : null);
 
                                 if (commandHandler != null)
                                 {
-                                    await commandHandler.ExecuteAsync(client.Value);
+                                    await commandHandler.ExecuteAsync(client);
                                 }
-
-                                Console.ForegroundColor = ConsoleColor.Magenta;
-                                Console.WriteLine($"Клиент {client.Key} получил команду");
+                            }
+                            else
+                            {
+                                Console.ForegroundColor = ConsoleColor.Red;
+                                Console.WriteLine($"Получены некорректные аргументы либо команда");
                                 Console.ResetColor();
+                                return;
                             }
                         }
                         else
                         {
-                            if(Command is "$stop")
+                            return;
+                        }
+
+                        break;
+                    case Usage.All:
+
+                        if (!string.IsNullOrEmpty(Command))
+                        {
+                            if (!string.IsNullOrEmpty(Arguments))
                             {
                                 foreach (var client in Server.clientList)
                                 {
                                     Console.ForegroundColor = ConsoleColor.Magenta;
                                     Console.WriteLine($"\nОтправка команды клиену {client.Key}");
                                     Console.ResetColor();
+                                    ICommand commandHandler = await GetCommandToClientHandler(client.Value, Command, Arguments);
 
-                                    await MessageServer.SendMessageToClient(client.Value, Command);
+                                    if (commandHandler != null)
+                                    {
+                                        await commandHandler.ExecuteAsync(client.Value);
+                                    }
 
                                     Console.ForegroundColor = ConsoleColor.Magenta;
                                     Console.WriteLine($"Клиент {client.Key} получил команду");
@@ -152,19 +148,56 @@ namespace Server_Control.assets.Commands
                             }
                             else
                             {
-                                Console.ForegroundColor = ConsoleColor.Red;
-                                Console.WriteLine($"Получены неверные аргументы");
-                                Console.ResetColor();
+                                if (Command.Contains("Process"))
+                                {
+                                    foreach (var client in Server.clientList)
+                                    {
+                                        Console.ForegroundColor = ConsoleColor.Magenta;
+                                        Console.WriteLine($"\nОтправка команды клиену {client.Key}");
+                                        Console.ResetColor();
+                                        ICommand commandHandler = await GetCommandToClientHandler(client.Value, Command);
+
+                                        if (commandHandler != null)
+                                        {
+                                            await commandHandler.ExecuteAsync(client.Value);
+                                        }
+
+                                        Console.ForegroundColor = ConsoleColor.Magenta;
+                                        Console.WriteLine($"Клиент {client.Key} получил команду");
+                                        Console.ResetColor();
+                                    }
+                                }
+                                else if (Command is "$stop")
+                                {
+                                    foreach (var client in Server.clientList)
+                                    {
+                                        Console.ForegroundColor = ConsoleColor.Magenta;
+                                        Console.WriteLine($"\nОтправка команды клиену {client.Key}");
+                                        Console.ResetColor();
+
+                                        await MessageServer.SendMessageToClient(client.Value, Command);
+
+                                        Console.ForegroundColor = ConsoleColor.Magenta;
+                                        Console.WriteLine($"Клиент {client.Key} получил команду");
+                                        Console.ResetColor();
+                                    }
+                                }
+                                else
+                                {
+                                    Console.ForegroundColor = ConsoleColor.Red;
+                                    Console.WriteLine($"Получены неверные аргументы");
+                                    Console.ResetColor();
+                                }
                             }
                         }
-                    }
-                    else
-                    {
+                        break;
+                    default:
+
                         Console.ForegroundColor = ConsoleColor.Red;
                         Console.WriteLine($"Получена неверная команда");
                         Console.ResetColor();
+
                         return;
-                    }
                 }
             }
             catch (Exception ex)
@@ -187,14 +220,14 @@ namespace Server_Control.assets.Commands
                     {
                         await MessageServer.SendMessageToClient(client, $"{command} {PathsDownload[1]}");
 
-                        if(await MessageServer.ReadClientMessage(client) is "$success")
+                        if (await MessageServer.ReadClientMessage(client) is "$success")
                         {
                             return new ReciveCommand(PathsDownload[0]);
                         }
                         else
                         {
                             Console.ForegroundColor = ConsoleColor.Red;
-                            Console.WriteLine($"Клиент сообщил о некорректности пути отправки -  {PathsDownload[1]}");
+                            Console.WriteLine($"Клиент сообщил о некорректности пути отправки, или о некорректности команды -  {PathsDownload[1]}");
                             Console.ResetColor();
                         }
                     }
@@ -213,14 +246,14 @@ namespace Server_Control.assets.Commands
                     {
                         await MessageServer.SendMessageToClient(client, $"{command} {PathsUpload[1]}");
 
-                        if(await MessageServer.ReadClientMessage(client) is "$success")
+                        if (await MessageServer.ReadClientMessage(client) is "$success")
                         {
                             return new SendCommand(PathsUpload[0]);
                         }
                         else
                         {
                             Console.ForegroundColor = ConsoleColor.Red;
-                            Console.WriteLine($"Клиент сообщил о некорректности пути сохранения - {PathsUpload[1]}");
+                            Console.WriteLine($"Клиент сообщил о некорректности пути сохранения, или о некорректности команды - {PathsUpload[1]}");
                             Console.ResetColor();
                         }
                     }
@@ -230,6 +263,7 @@ namespace Server_Control.assets.Commands
                     }
 
                     break;
+
                 case "$delete":
 
                     await MessageServer.SendMessageToClient(client, $"{command} {arguments}");
@@ -237,11 +271,44 @@ namespace Server_Control.assets.Commands
                     if (await MessageServer.ReadClientMessage(client) is "$error")
                     {
                         Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine($"Клиент сообщил о некорректности пути удаления - {arguments}");
+                        Console.WriteLine($"Клиент сообщил о некорректности пути удаления, или о некорректности команды - {arguments}");
                         Console.ResetColor();
                     }
 
-                        break;
+                    break;
+
+                case "$exists":
+
+                    await MessageServer.SendMessageToClient(client, $"{command} {arguments}");
+
+                    if (await MessageServer.ReadClientMessage(client) is "$success")
+                    {
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine($"Путь {arguments} существует на локальном клиенте.");
+                        Console.ResetColor();
+                    }
+                    else
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine($"Путь {arguments} не существует на локальном клиенте.");
+                        Console.ResetColor();
+                    }
+
+                    break;
+
+                case var tempCommand when command.Contains("Process"):
+
+                    return new ProcessCommand(command, arguments != null ? arguments : null);
+
+                case "$play":
+                    await MessageServer.SendMessageToClient(client, $"{command} {arguments}");
+
+                    return new MusicCommand();
+
+                case "$setwallpaper":
+                    await MessageServer.SendMessageToClient(client, $"{command} {arguments}");
+
+                    return new WallpaperCommand();
 
                 default:
                     Console.ForegroundColor = ConsoleColor.Red;

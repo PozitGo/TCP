@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Text;
@@ -40,16 +41,18 @@ namespace Server_Control.assets
                 {
                     if (stream.DataAvailable)
                     {
-                        byte[] buffer = new byte[4096];
+                        byte[] buffer = new byte[8192];
                         int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
                         string base64Message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
                         byte[] messageBytes = Convert.FromBase64String(base64Message);
+
                         return Encoding.UTF8.GetString(messageBytes, 0, messageBytes.Length);
                     }
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Console.WriteLine($"Ошибка {ex.Message}");
                 Console.ForegroundColor = ConsoleColor.DarkCyan;
                 Console.WriteLine($"\nКлиент {client.Client.RemoteEndPoint} отключился c UUID {Server.clientList.FirstOrDefault(x => x.Value == client).Key} в {DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")}.");
                 Console.ResetColor();
@@ -58,6 +61,5 @@ namespace Server_Control.assets
 
             return null;
         }
-
     }
 }

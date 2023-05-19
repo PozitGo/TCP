@@ -1,4 +1,5 @@
 ﻿using Server_Control.assets.Commands;
+using Server_Control.assets.Commands.LocalCommands;
 using System;
 using System.Collections.Concurrent;
 using System.Linq;
@@ -15,10 +16,25 @@ namespace Server_Control.assets
         private TcpListener server;
         public static readonly ConcurrentDictionary<string, TcpClient> clientList = new ConcurrentDictionary<string, TcpClient>();
 
-        public Server(string ServerIP, int ServerPort)
+        public Server(IPAddress ServerIP, int ServerPort)
         {
-            this.ServerIP = IPAddress.Parse(ServerIP);
+            this.ServerIP = ServerIP;
             this.ServerPort = ServerPort;
+        }
+
+        public Server(string Domain, int Port)
+        {
+            try
+            {
+                this.ServerIP = Dns.GetHostAddresses(Domain)[0];
+                this.ServerPort = Port;
+            }
+            catch (Exception)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("Ошибка в домене");
+                Console.ResetColor();
+            }
         }
         public Task Start()
         {
@@ -60,11 +76,17 @@ namespace Server_Control.assets
                 while (true)
                 {
                     ConsoleKeyInfo keyInfo;
+
                     do
                     {
                         keyInfo = Console.ReadKey();
 
                     } while (keyInfo.Key != ConsoleKey.Enter);
+
+                    int currentLineCursor = Console.CursorTop;
+                    Console.SetCursorPosition(0, Console.CursorTop);
+                    Console.Write(new string(' ', Console.WindowWidth));
+                    Console.SetCursorPosition(0, currentLineCursor);
 
                     Console.ForegroundColor = ConsoleColor.DarkYellow;
                     Console.WriteLine("\nВведите команду или UUID клиента для работы с ним:");
@@ -74,79 +96,88 @@ namespace Server_Control.assets
                     {
                         string Value = Console.ReadLine();
 
-                        if (Value != "$stop")
+                        if (Value.Any(c => c == ' ') || (!Value.Any(c => c == ' ') && !Value.Contains("$")))
                         {
                             if (clientList.Count != 0)
                             {
-                                if (Server.clientList.ContainsKey(Value))
+                                if (Server.clientList.TryGetValue(Value, out TcpClient client))
                                 {
-                                    Results.Success();
-
-                                    TcpClient client = clientList[Value];
-
-                                    if (client.Connected)
-                                    {
-                                        ClientHandler clientHandler = new ClientHandler(client, Value);
-                                        await clientHandler.Handle(Usage.Disposable);
-                                    }
-
+                                    await HandleClientFound(Value, client);
                                     break;
                                 }
-                                else if (Value.Split(' ').Length is 3 && Server.clientList.ContainsKey(Value.Split(' ')[0]))
+                                else if (Value.Split(' ').Length >= 3 || Value.Split(' ').Length <= 2)
                                 {
-
-                                    Results.Success();
-
                                     string[] Data = Value.Split(' ');
-                                    TcpClient client = clientList[Data[0]];
 
-                                    if (client.Connected)
+                                    if (Data.Length >= 3)
                                     {
-                                        ClientHandler clientHandler = new ClientHandler(client, Data[0], Data[1], Data[2]);
-                                        await clientHandler.Handle(Usage.Reusable);
+                                        Data[2] = string.Join(" ", Data.Skip(2));
                                     }
 
-                                    break;
+                                    if (Server.clientList.TryGetValue(Data[0], out TcpClient clientTwo))
+                                    {
+                                        await HandleClientFound(Data[0], clientTwo, Data);
+                                        break;
+                                    }
+                                    else if (Data[0].Contains("all"))
+                                    {
+                                        if (Data.Length > 2)
+                                        {
+                                            await HandleAllClients(Data[1], Data[2]);
+                                            break;
+                                        }
+                                        else
+                                        {
+                                            await HandleAllClients(Data[1]);
+                                            break;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Console.ForegroundColor = ConsoleColor.Red;
+                                        Console.WriteLine($"\rКлиент с UUID {Value} не подключен либо IP некорректен, либо контекст команды неверен. Попробуйте еще раз.");
+                                        Console.ResetColor();
 
-                                }
-                                else if (Value.Split(' ').Length is 3 && Value.Split(' ')[0].Contains("all"))
-                                {
-                                    Results.Success();
-                                    string[] Data = Value.Split(' ');
+                                        int currentLineCursorError = Console.CursorTop;
+                                        Console.SetCursorPosition(0, Console.CursorTop - 2);
+                                        Console.Write(new string(' ', Console.WindowWidth));
+                                        Console.SetCursorPosition(0, currentLineCursorError - 2);
 
-                                    ClientHandler clientHandler = new ClientHandler(Data[1], Data[2]);
-                                    await clientHandler.Handle(Usage.All);
-
-                                    break;
+                                    }
                                 }
                                 else
                                 {
                                     Console.ForegroundColor = ConsoleColor.Red;
-                                    Console.WriteLine($"Клиент с UUID {Value} не подключен либо IP некорректен, либо контекст команды неверен. Попробуйте еще раз.");
+                                    Console.WriteLine($"\rКлиент с UUID {Value} не подключен либо IP некорректен, либо контекст команды неверен. Попробуйте еще раз.");
                                     Console.ResetColor();
 
-                                    int currentLineCursor = Console.CursorTop;
+                                    int currentLineCursorError = Console.CursorTop;
                                     Console.SetCursorPosition(0, Console.CursorTop - 2);
                                     Console.Write(new string(' ', Console.WindowWidth));
-                                    Console.SetCursorPosition(0, currentLineCursor - 2);
+                                    Console.SetCursorPosition(0, currentLineCursorError - 2);
+
+                                    break;
                                 }
                             }
                             else
                             {
                                 Console.ForegroundColor = ConsoleColor.Red;
-                                Console.WriteLine($"Ещё не 1 клиент не подключен, введите команду после подключения клиента");
+                                Console.WriteLine($"Ещё не один клиент не подключен, введите команду после подключения клиента");
                                 Console.ResetColor();
+
+                                int currentLineCursorError = Console.CursorTop;
+                                Console.SetCursorPosition(0, Console.CursorTop - 2);
+                                Console.Write(new string(' ', Console.WindowWidth));
+                                Console.SetCursorPosition(0, currentLineCursorError - 2);
+
+
+                                break;
                             }
                         }
                         else
                         {
-                            Task.Factory.StartNew(async () =>
-                            {
-                                ClientHandler clientHandler = new ClientHandler(Value);
-                                await clientHandler.Handle(Usage.All);
-                            }).Wait();
-
-                            Environment.Exit(0);
+                            await HandleCommandNoArguments(Value);
+                            break;
                         }
 
                     }
@@ -164,6 +195,67 @@ namespace Server_Control.assets
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"Ошибка при обработке соединения: {ex.Message}");
                 Console.ResetColor();
+            }
+        }
+
+        async Task HandleClientFound(string uuid, TcpClient client, string[] data = null)
+        {
+            Results.Success();
+
+            if (client.Connected)
+            {
+                ClientHandler clientHandler;
+
+                if (data != null && data.Length > 2)
+                {
+                    clientHandler = new ClientHandler(client, data[0], data[1], data[2]);
+                }
+                else if(data != null && data.Length <= 2)
+                {
+                    clientHandler = new ClientHandler(client, uuid, data[1]);
+                }
+                else
+                {
+                    clientHandler = new ClientHandler(client, uuid);
+                }
+
+                await clientHandler.Handle(data != null ? Usage.Reusable : Usage.Disposable);
+            }
+        }
+
+        async Task HandleAllClients(string action, string param = null)
+        {
+            Results.Success();
+
+            ClientHandler clientHandler = new ClientHandler(action, param);
+            await clientHandler.Handle(Usage.All);
+        }
+
+        async Task HandleCommandNoArguments(string command)
+        {
+            switch (command)
+            {
+                case "$stop":
+
+                    Task.Factory.StartNew(async () =>
+                    {
+                        ClientHandler clientHandler = new ClientHandler(command);
+                        await clientHandler.Handle(Usage.All);
+                    }).Wait();
+
+                    Environment.Exit(0);
+
+                    break;
+
+                default:
+
+                    await Task.Factory.StartNew(() =>
+                    {
+                        LocalCommandHandler localCommandHandler = new LocalCommandHandler(command);
+                        localCommandHandler.LocalHandle();
+                    });
+
+                    break;
             }
         }
     }

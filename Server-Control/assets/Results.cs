@@ -14,7 +14,7 @@ namespace Server_Control.assets
             Console.SetCursorPosition(0, currentLineCursor);
 
             Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"Успешно");
+            Console.WriteLine($"Команда прошла валидацию");
             Console.ResetColor();
         }
     }
