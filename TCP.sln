@@ -7,11 +7,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PublicServer", "PublicServe
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PublicClient", "PublicClient\PublicClient.csproj", "{E6C35065-9C32-4D05-9EB7-EE60B7E36A2E}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ClientRecive", "ClientRecive\ClientRecive.csproj", "{0E7E57DB-3986-47F8-8667-A72D3AF3A2E1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WebSlingerClient", "ClientRecive\WebSlingerClient.csproj", "{0E7E57DB-3986-47F8-8667-A72D3AF3A2E1}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Server-Control", "Server-Control\Server-Control.csproj", "{A8A08FCD-4CC0-45ED-8FB7-C38AE048E9E9}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WebSlingerServer", "Server-Control\WebSlingerServer.csproj", "{A8A08FCD-4CC0-45ED-8FB7-C38AE048E9E9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test", "Test\Test.csproj", "{31FEE18F-ECF1-4003-976C-CF0B653F46AA}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Test", "Test\Test.csproj", "{31FEE18F-ECF1-4003-976C-CF0B653F46AA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
